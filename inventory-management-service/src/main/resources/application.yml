@@ -1,0 +1,140 @@
+server:
+  port: 8082
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: inventory-management-service
+  
+  # MongoDB設定
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: skishop_inventory
+      auto-index-creation: true
+  
+  # PostgreSQL設定
+  datasource:
+    url: jdbc:postgresql://localhost:5432/skishop_inventory
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      maximum-pool-size: 10
+
+  # JPA設定
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Tokyo
+    open-in-view: false
+
+  # Flyway設定
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # Kafka設定
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
+  # Redis設定
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 0
+
+  # セキュリティ設定
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/auth/realms/skishop
+
+# ログ設定
+logging:
+  level:
+    com.skishop.inventory: DEBUG
+    org.springframework.data.mongodb: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.cache: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/inventory-management-service.log
+
+# アクチュエーター設定
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# アプリケーション設定
+app:
+  inventory:
+    low-stock-threshold: 5
+    cache:
+      ttl: 300  # 5分
+    image:
+      max-size: 10MB
+      allowed-types: jpg,jpeg,png,webp
+  
+  azure:
+    storage:
+      account-name: ${AZURE_STORAGE_ACCOUNT_NAME:}
+      account-key: ${AZURE_STORAGE_ACCOUNT_KEY:}
+      container-name: product-images
+
+# OpenAPI設定
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+  info:
+    title: Inventory Management Service API
+    description: 在庫管理サービスのREST API
+    version: 1.0.0
+    contact:
+      name: Ski Shop Team
+      email: support@skishop.com

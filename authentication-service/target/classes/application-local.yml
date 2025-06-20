@@ -1,0 +1,172 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: authentication-service
+  profiles:
+    active: local
+  
+  # Microsoft Entra ID Configuration - DISABLED for local development
+  cloud:
+    azure:
+      active-directory:
+        enabled: false
+        profile:
+          tenant-id: ${AZURE_TENANT_ID:disabled-for-local}
+        credential:
+          client-id: ${AZURE_CLIENT_ID:disabled-for-local}
+          client-secret: ${AZURE_CLIENT_SECRET:disabled-for-local}
+        app-id-uri: ${AZURE_APP_ID_URI:api://disabled-for-local}
+        authorization-clients:
+          graph:
+            scopes: https://graph.microsoft.com/User.Read
+  
+  # OAuth2 Client Configuration - DISABLED for local development
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID:disabled-for-local}
+            client-secret: ${AZURE_CLIENT_SECRET:disabled-for-local}
+            scope: openid,profile,User.Read
+        provider:
+          azure:
+            issuer-uri: https://login.microsoftonline.com/disabled-for-local/v2.0
+
+  # Database Configuration
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://auth-postgres:5432/skishop_auth}
+    username: ${DB_USERNAME:auth_user}
+    password: ${DB_PASSWORD:auth_password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      validation-timeout: 5000
+      leak-detection-threshold: 60000
+      auto-commit: false
+  
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+          order_inserts: true
+          order_updates: true
+        connection:
+          provider_disables_autocommit: true
+          auto_commit: false
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: ${REDIS_HOST:auth-redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+  
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000 # 1時間
+      cache-null-values: false
+
+  # Kafka Configuration - DISABLED for local development
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: auth-service-local
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+# Logging Configuration
+logging:
+  level:
+    '[com.skishop.auth]': ${LOG_LEVEL:DEBUG}
+    '[org.springframework.security]': ${SECURITY_LOG_LEVEL:DEBUG}
+    '[org.springframework.web]': ${WEB_LOG_LEVEL:INFO}
+    '[com.azure.spring]': WARN
+    '[org.hibernate.SQL]': DEBUG
+    '[org.hibernate.type.descriptor.sql.BasicBinder]': TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
+# Management and Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+# Application Specific Configuration
+app:
+  protect:
+    authenticated: /token_details,/call_graph,/profile,/admin/**
+  
+  security:
+    password-min-length: 4  # ローカル開発では緩和
+    max-login-attempts: 999  # ローカル開発では無効化
+    lockout-duration: 1000   # 1秒
+    session-timeout: 1800000 # 30分
+  
+  mfa:
+    enabled: false  # ローカル開発では無効
+    issuer: SkiShop-Local
+    secret-length: 32
+  
+# JWT Configuration (for internal token management)
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-for-jwt-that-is-long-enough-for-hs512-algorithm-and-secure-testing-with-additional-length-to-meet-512-bit-requirement-exactly-64-chars}
+  issuer: ${JWT_ISSUER:SkiShop-Auth-Local}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:3600}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800}
+
+# Local Development Settings
+local:
+  auth:
+    enable-azure-ad: false
+    enable-oauth2: false
+    enable-mfa: false
+    simple-auth-mode: true
+
+# API Documentation
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: com.skishop.auth.controller

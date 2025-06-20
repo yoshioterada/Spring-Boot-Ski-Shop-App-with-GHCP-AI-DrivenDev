@@ -1,0 +1,256 @@
+spring:
+  application:
+    name: api-gateway
+  
+  # Cloud Gateway設定
+  cloud:
+    gateway:
+      # グローバルフィルター設定
+      global-filters:
+        - name: LoggingFilter
+          args:
+            baseMessage: API Gateway Request/Response
+            preLogger: true
+            postLogger: true
+        - name: RequestSizeFilter
+          args:
+            max-size: 5MB
+      
+      # デフォルトフィルター設定
+      default-filters:
+        - name: DedupeResponseHeader
+          args:
+            name: Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            strategy: RETAIN_FIRST
+        - name: AddResponseHeader
+          args:
+            name: X-Gateway
+            value: SkiShop API Gateway
+        - name: AddRequestHeader
+          args:
+            name: X-Forwarded-By
+            value: SkiShop Gateway
+      
+      # HTTP タイムアウト設定
+      httpclient:
+        connect-timeout: 3000
+        response-timeout: 10s
+        pool:
+          max-connections: 100
+          max-idle-time: 30s
+          max-life-time: 60s
+          eviction-interval: 30s
+      
+      # サーキットブレーカー設定
+      circuit-breaker:
+        config:
+          default:
+            sliding-window-size: 20
+            minimum-number-of-calls: 5
+            failure-rate-threshold: 50
+            wait-duration-in-open-state: 10s
+            permitted-number-of-calls-in-half-open-state: 3
+  
+  # セキュリティ設定
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/auth/realms/skishop}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8080/auth/realms/skishop/protocol/openid_connect/certs}
+          cache-duration: PT5M
+  
+  # Redis設定（レート制限用）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  
+  # Kafka設定（イベント発行用）
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+      bindings:
+        apiGatewayEvent-out-0:
+          destination: gateway.events
+          content-type: application/json
+
+# サーバー設定
+server:
+  port: ${PORT:8090}
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+
+# 管理エンドポイント設定
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+    gateway:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      service: api-gateway
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        gateway.requests: true
+
+# ログ設定
+logging:
+  level:
+    com.skishop.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web.reactive: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
+# アプリケーション固有設定
+app:
+  # バックエンドサービス設定
+  services:
+    authentication: ${AUTH_SERVICE_URL:http://localhost:8080}
+    user-management: ${USER_SERVICE_URL:http://localhost:8081}
+    inventory-management: ${INVENTORY_SERVICE_URL:http://localhost:8082}
+    sales-management: ${SALES_SERVICE_URL:http://localhost:8083}
+    payment-cart: ${PAYMENT_CART_SERVICE_URL:http://localhost:8084}
+    point: ${POINT_SERVICE_URL:http://localhost:8085}
+    coupon: ${COUPON_SERVICE_URL:http://localhost:8086}
+    ai-support: ${AI_SUPPORT_SERVICE_URL:http://localhost:8087}
+  
+  # レート制限設定
+  rate-limit:
+    default:
+      requests-per-second: 10
+      burst-capacity: 20
+    premium:
+      requests-per-second: 100
+      burst-capacity: 200
+    
+  # CORS設定
+  cors:
+    allowed-origins: 
+      - ${FRONTEND_URL:http://localhost:3000}
+      - ${ADMIN_URL:http://localhost:3001}
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
+    allow-credentials: true
+    max-age: 3600
+  
+  # セキュリティ設定
+  security:
+    # パブリックエンドポイント（認証不要）
+    public-endpoints:
+      - "/api/auth/**"
+      - "/api/products/public/**"
+      - "/api/search/public/**"
+      - "/actuator/health"
+      - "/actuator/prometheus"
+      - "/swagger-ui/**"
+      - "/v3/api-docs/**"
+    
+    # 管理者専用エンドポイント
+    admin-endpoints:
+      - "/api/admin/**"
+      - "/api/analytics/**"
+      - "/api/inventory/admin/**"
+      - "/actuator/**"
+    
+    # JWT設定
+    jwt:
+      secret-key: ${JWT_SECRET:your-jwt-secret-key-here}
+      expiration: 86400 # 24時間
+      refresh-expiration: 604800 # 7日
+  
+  # フォールバック設定
+  fallback:
+    enabled: true
+    cache-duration: PT30S
+    default-message: "サービスが一時的に利用できません。しばらくしてから再度お試しください。"
+
+# Resilience4j設定
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      user-service:
+        base-config: default
+        wait-duration-in-open-state: 5s
+      auth-service:
+        base-config: default
+        wait-duration-in-open-state: 3s
+      inventory-service:
+        base-config: default
+      sales-service:
+        base-config: default
+      payment-cart-service:
+        base-config: default
+        failure-rate-threshold: 30
+      point-service:
+        base-config: default
+      coupon-service:
+        base-config: default
+      ai-support-service:
+        base-config: default
+        wait-duration-in-open-state: 15s
+
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - org.springframework.web.client.ResourceAccessException
+
+# API文書化設定
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    urls:
+      - name: API Gateway
+        url: /api-docs
+      - name: Authentication Service
+        url: http://localhost:8080/api-docs
+      - name: User Management Service
+        url: http://localhost:8081/api-docs

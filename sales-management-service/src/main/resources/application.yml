@@ -1,0 +1,103 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: sales-management-service
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/skishop_sales
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: sales-management-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: latest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+  
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.skishop.sales: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# アプリケーション固有の設定
+app:
+  order:
+    expiry-hours: 24  # 注文の有効期限（時間）
+    auto-cancel-enabled: true  # 自動キャンセル機能
+  
+  shipping:
+    free-shipping-threshold: 5000  # 送料無料の閾値
+    default-shipping-fee: 500  # デフォルト送料
+  
+  return:
+    allowed-days: 30  # 返品可能日数
+    auto-approval-threshold: 10000  # 自動承認の閾値
+  
+  kafka:
+    topics:
+      orders: sales.orders
+      shipments: sales.shipments
+      returns: sales.returns
+
+# Swagger/OpenAPI設定
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true

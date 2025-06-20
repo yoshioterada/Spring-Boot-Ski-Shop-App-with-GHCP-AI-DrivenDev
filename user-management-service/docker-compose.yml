@@ -1,0 +1,113 @@
+
+services:
+  # PostgreSQL データベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: user-management-postgres
+    environment:
+      POSTGRES_DB: skishop_user
+      POSTGRES_USER: skishop_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - user-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skishop_user -d skishop_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis キャッシュ
+  redis:
+    image: redis:7-alpine
+    container_name: user-management-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - user-management-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # User Management Service
+  user-management-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-management-service
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: local
+      
+      # 認証機能フィーチャーフラグ
+      SKISHOP_AUTHFUNC_ENABLE: "false"
+      
+      # データベース設定
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skishop_user?autoCommit=false
+      SPRING_DATASOURCE_USERNAME: skishop_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATASOURCE_HIKARI_AUTO_COMMIT: "false"
+      
+      # Redis設定
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      
+      # JVM設定
+      JAVA_OPTS: "-Xmx512m -Xms256m -Djava.security.egd=file:/dev/./urandom"
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - user-management-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # pgAdmin (データベース管理ツール、オプション)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: user-management-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@skishop.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - user-management-network
+    depends_on:
+      - postgres
+    profiles:
+      - admin-tools
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  user-management-network:
+    driver: bridge

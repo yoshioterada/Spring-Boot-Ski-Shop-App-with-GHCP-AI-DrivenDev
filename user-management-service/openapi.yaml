@@ -1,0 +1,720 @@
+openapi: 3.0.3
+info:
+  title: User Management Service API
+  description: |
+    ユーザー管理サービスのAPI仕様書
+    
+    このAPIは認証機能のON/OFF状態を切り替え可能で、開発時は認証を無効化してテストすることができます。
+    
+    **検証済み環境:**
+    - Docker環境での動作確認済み
+    - 認証機能OFF状態での全エンドポイント検証完了
+    - PostgreSQL 15 + Redis 7 構成
+  version: 1.0.0
+  contact:
+    name: SkiShop Development Team
+    email: dev@skishop.com
+servers:
+  - url: http://localhost:8081/api
+    description: ローカル開発環境
+  - url: https://api.skishop.com/user
+    description: 本番環境
+
+paths:
+  /actuator/health:
+    get:
+      tags:
+        - Health Check
+      summary: ヘルスチェック
+      description: サービスの稼働状況とデータベース・Redisの接続状況を確認
+      operationId: healthCheck
+      responses:
+        '200':
+          description: サービス正常稼働中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "UP"
+                components:
+                  db:
+                    status: "UP"
+                    details:
+                      database: "PostgreSQL"
+                      validationQuery: "isValid()"
+                  redis:
+                    status: "UP"
+                    details:
+                      version: "7.4.4"
+
+  /users:
+    post:
+      tags:
+        - User Management
+      summary: ユーザー作成
+      description: 新しいユーザーアカウントを作成
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              username: "testuser1"
+              email: "test1@example.com"
+              password: "test123456"
+              firstName: "Test1"
+              lastName: "User1"
+      responses:
+        '201':
+          description: ユーザー作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: 入力値不正
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: ユーザー名またはメールアドレスが既に存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}:
+    get:
+      tags:
+        - User Management
+      summary: ユーザー情報取得
+      description: 指定されたIDのユーザー情報を取得
+      operationId: getUserById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "e676091b-90c1-40b4-bd9f-ddeea80004ef"
+      responses:
+        '200':
+          description: ユーザー情報取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    
+    put:
+      tags:
+        - User Management
+      summary: ユーザー情報更新
+      description: 指定されたIDのユーザー情報を更新
+      operationId: updateUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "e676091b-90c1-40b4-bd9f-ddeea80004ef"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              email: "updated1@example.com"
+              firstName: "Updated1"
+              lastName: "User1"
+      responses:
+        '200':
+          description: ユーザー情報更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: 入力値不正
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    
+    delete:
+      tags:
+        - User Management
+      summary: ユーザー削除
+      description: 指定されたIDのユーザーを削除
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "e676091b-90c1-40b4-bd9f-ddeea80004ef"
+      responses:
+        '204':
+          description: ユーザー削除成功
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/check-email:
+    get:
+      tags:
+        - User Management
+      summary: メールアドレス存在確認
+      description: 指定されたメールアドレスが既に登録されているか確認
+      operationId: checkEmail
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+          example: "test1@example.com"
+      responses:
+        '200':
+          description: メールアドレス確認結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailCheckResponse'
+              example:
+                email: "test1@example.com"
+                exists: false
+                message: "Email does not exist"
+
+  /users/verify-email:
+    post:
+      tags:
+        - User Management
+      summary: メール認証
+      description: メール認証トークンを使用してメールアドレスを認証
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+            example:
+              email: "test1@example.com"
+              token: "sample-token"
+      responses:
+        '200':
+          description: メール認証成功
+        '400':
+          description: 不正なトークンまたはメールアドレス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/activities:
+    get:
+      tags:
+        - User Activities
+      summary: ユーザーアクティビティ取得
+      description: 指定されたユーザーのアクティビティ履歴を取得
+      operationId: getUserActivities
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "e676091b-90c1-40b4-bd9f-ddeea80004ef"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: ユーザーアクティビティ取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserActivitiesResponse'
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/preferences:
+    get:
+      tags:
+        - User Preferences
+      summary: ユーザー設定取得
+      description: 指定されたユーザーの設定情報を取得
+      operationId: getUserPreferences
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "e676091b-90c1-40b4-bd9f-ddeea80004ef"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: ユーザー設定取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferencesResponse'
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: 管理者 - ユーザー一覧取得
+      description: 管理者権限でユーザー一覧を取得
+      operationId: getUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: ユーザー一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersListResponse'
+        '403':
+          description: 管理者権限が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/roles:
+    get:
+      tags:
+        - Admin
+      summary: 管理者 - ロール一覧取得
+      description: 管理者権限でロール一覧を取得
+      operationId: getRoles
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: ロール一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolesListResponse'
+        '403':
+          description: 管理者権限が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        components:
+          type: object
+          properties:
+            db:
+              $ref: '#/components/schemas/ComponentHealth'
+            redis:
+              $ref: '#/components/schemas/ComponentHealth'
+            diskSpace:
+              $ref: '#/components/schemas/ComponentHealth'
+            livenessState:
+              $ref: '#/components/schemas/ComponentHealth'
+            readinessState:
+              $ref: '#/components/schemas/ComponentHealth'
+            ping:
+              $ref: '#/components/schemas/ComponentHealth'
+        groups:
+          type: array
+          items:
+            type: string
+
+    ComponentHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        details:
+          type: object
+          additionalProperties: true
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - firstName
+        - lastName
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+        firstName:
+          type: string
+          maxLength: 50
+        lastName:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        birthDate:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        firstName:
+          type: string
+          maxLength: 50
+        lastName:
+          type: string
+          maxLength: 50
+        phoneNumber:
+          type: string
+          maxLength: 20
+        birthDate:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        fullName:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, ACTIVE, INACTIVE, SUSPENDED]
+        emailVerified:
+          type: boolean
+        phoneVerified:
+          type: boolean
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    EmailCheckResponse:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        exists:
+          type: boolean
+        message:
+          type: string
+
+    EmailVerificationRequest:
+      type: object
+      required:
+        - email
+        - token
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+
+    UserActivitiesResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserActivity'
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    UserActivity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        action:
+          type: string
+        description:
+          type: string
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    UserPreferencesResponse:
+      type: object
+      properties:
+        preferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserPreference'
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    UserPreference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        key:
+          type: string
+        value:
+          type: string
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UsersListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    RolesListResponse:
+      type: object
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        status:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT認証（認証機能ON時に使用）
+        
+        **認証機能OFF時の注意:**
+        環境変数 `SKISHOP_AUTH_ENABLE=false` の場合、認証は無効化されます。
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health Check
+    description: サービス稼働状況確認
+  - name: User Management
+    description: ユーザー管理機能
+  - name: User Activities
+    description: ユーザーアクティビティ管理
+  - name: User Preferences
+    description: ユーザー設定管理
+  - name: Admin
+    description: 管理者機能
+
+x-readme:
+  samples-languages:
+    - curl
+    - javascript
+    - java
+    - python

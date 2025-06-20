@@ -1,0 +1,569 @@
+openapi: 3.0.3
+info:
+  title: Authentication Service API
+  description: |
+    スキーショップ電子商取引プラットフォームの認証・認可マイクロサービス
+    
+    ## 主な機能
+    - ユーザー認証（ログイン/ログアウト）
+    - JWTトークン生成と検証
+    - OAuth統合（Azure Entra ID、Google、Facebook、LINE）
+    - 多要素認証（MFA）
+    - セッション管理とセキュリティ
+    - パスワード管理とリセット
+    
+  version: 1.0.0
+  contact:
+    name: SkiShop Development Team
+    email: dev@skishop.com
+  license:
+    name: Proprietary
+servers:
+  - url: http://localhost:8080/api
+    description: ローカル開発環境
+  - url: https://api-dev.skishop.com/auth
+    description: 開発環境
+  - url: https://api-staging.skishop.com/auth
+    description: ステージング環境
+  - url: https://api.skishop.com/auth
+    description: 本番環境
+
+security:
+  - BearerAuth: []
+
+paths:
+  /actuator/health:
+    get:
+      tags:
+        - Health Check
+      summary: ヘルスチェック
+      description: サービスの稼働状況とその依存関係の健全性を確認
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: サービス正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: サービス異常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: ユーザーログイン
+      description: ユーザー名（またはメールアドレス）とパスワードでログイン
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: アカウントロック
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: ユーザーログアウト
+      description: 現在のセッションを終了し、トークンを無効化
+      operationId: logout
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          description: 認証が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: トークンリフレッシュ
+      description: リフレッシュトークンを使用してアクセストークンを更新
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: トークンリフレッシュ成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefreshResponse'
+        '401':
+          description: 無効なリフレッシュトークン
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/validate:
+    get:
+      tags:
+        - Authentication
+      summary: トークン検証
+      description: アクセストークンの有効性を検証し、ユーザー情報を返却
+      operationId: validateToken
+      responses:
+        '200':
+          description: トークン有効
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidationResponse'
+        '401':
+          description: 無効なトークン
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/password/reset-request:
+    post:
+      tags:
+        - Password Management
+      summary: パスワードリセット要求
+      description: パスワードリセット用のトークンを生成し、メールで送信
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: リセット要求受付
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: ユーザーが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/password/reset:
+    post:
+      tags:
+        - Password Management
+      summary: パスワードリセット実行
+      description: リセットトークンを使用してパスワードを変更
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+      responses:
+        '200':
+          description: パスワードリセット成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: 無効なトークンまたはパスワード
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/mfa/setup:
+    post:
+      tags:
+        - Multi-Factor Authentication
+      summary: MFA設定
+      description: ユーザーの多要素認証を設定し、QRコードを生成
+      operationId: setupMfa
+      responses:
+        '200':
+          description: MFA設定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaSetupResponse'
+        '401':
+          description: 認証が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/mfa/verify:
+    post:
+      tags:
+        - Multi-Factor Authentication
+      summary: MFA検証
+      description: MFAコードを検証してログインを完了
+      operationId: verifyMfa
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationRequest'
+      responses:
+        '200':
+          description: MFA検証成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          description: 無効なMFAコード
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/oauth2/authorize/{provider}:
+    get:
+      tags:
+        - OAuth2
+      summary: OAuth2認証開始
+      description: 指定されたプロバイダーでOAuth2認証を開始
+      operationId: initiateOAuth2
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth2プロバイダー名
+          schema:
+            type: string
+            enum: [azure, google, facebook, line]
+      responses:
+        '302':
+          description: 認証プロバイダーにリダイレクト
+        '400':
+          description: 無効なプロバイダー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/oauth2/callback/{provider}:
+    post:
+      tags:
+        - OAuth2
+      summary: OAuth2コールバック
+      description: OAuth2プロバイダーからのコールバックを処理
+      operationId: handleOAuth2Callback
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth2プロバイダー名
+          schema:
+            type: string
+            enum: [azure, google, facebook, line]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthCallbackRequest'
+      responses:
+        '200':
+          description: OAuth2認証成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          description: OAuth2認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN, OUT_OF_SERVICE, UNKNOWN]
+          example: UP
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [UP, DOWN, OUT_OF_SERVICE, UNKNOWN]
+              details:
+                type: object
+                additionalProperties: true
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: ユーザー名またはメールアドレス
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          description: パスワード
+          example: password123
+
+    AuthenticationResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: アクセストークン（JWT）
+        refreshToken:
+          type: string
+          description: リフレッシュトークン
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: アクセストークンの有効期限（秒）
+          example: 3600
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        requiresMfa:
+          type: boolean
+          description: MFAが必要かどうか
+          example: false
+        sessionToken:
+          type: string
+          description: MFA用セッショントークン（MFA必要時のみ）
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        mfaEnabled:
+          type: boolean
+
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Successfully logged out
+        timestamp:
+          type: string
+          format: date-time
+
+    TokenRefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: リフレッシュトークン
+
+    TokenRefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: 新しいアクセストークン
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: 有効期限（秒）
+          example: 3600
+
+    TokenValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: トークンが有効かどうか
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        expiresAt:
+          type: string
+          format: date-time
+          description: トークンの有効期限
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: パスワードリセット対象のメールアドレス
+          example: user@example.com
+
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          description: パスワードリセットトークン
+        newPassword:
+          type: string
+          format: password
+          description: 新しいパスワード
+          minLength: 8
+
+    MfaSetupResponse:
+      type: object
+      properties:
+        qrCodeUrl:
+          type: string
+          description: QRコードのデータURL
+        secret:
+          type: string
+          description: MFAシークレットキー
+        backupCodes:
+          type: array
+          items:
+            type: string
+          description: バックアップコード
+
+    MfaVerificationRequest:
+      type: object
+      required:
+        - sessionToken
+        - mfaCode
+      properties:
+        sessionToken:
+          type: string
+          description: MFA用セッショントークン
+        mfaCode:
+          type: string
+          description: MFAコード（6桁）
+          pattern: "^[0-9]{6}$"
+          example: "123456"
+
+    OAuthCallbackRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: 認証コード
+        state:
+          type: string
+          description: 状態パラメータ
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: メッセージ
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: エラーコード
+        message:
+          type: string
+          description: エラーメッセージ
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+          description: エラーが発生したパス
+
+tags:
+  - name: Health Check
+    description: サービス稼働状況確認
+  - name: Authentication
+    description: 基本認証機能
+  - name: Password Management
+    description: パスワード管理
+  - name: Multi-Factor Authentication
+    description: 多要素認証
+  - name: OAuth2
+    description: OAuth2統合認証

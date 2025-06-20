@@ -1,0 +1,149 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: coupon-service
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/coupon_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-timeout: 20000
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000 # 1時間
+      cache-null-values: false
+  
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/skishop}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8080/realms/skishop/protocol/openid-connect/certs}
+
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+        bindings:
+          coupon-events-out-0:
+            destination: coupon.events
+            content-type: application/json
+            producer:
+              configuration:
+                key.serializer: org.apache.kafka.common.serialization.StringSerializer
+                value.serializer: org.apache.kafka.common.serialization.StringSerializer
+                acks: all
+                retries: 3
+                batch.size: 16384
+                linger.ms: 5
+                buffer.memory: 33554432
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:local}
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    com.skishop.coupon: INFO
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/coupon-service.log
+    max-size: 10MB
+    max-history: 30
+
+# アプリケーション固有設定
+coupon:
+  code:
+    generator:
+      default-length: 8
+      max-attempts: 1000
+      allowed-characters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  
+  validation:
+    cache-ttl: 300 # 5分
+    max-user-coupons: 100
+  
+  campaign:
+    max-active: 50
+    auto-expire: true
+    expire-check-interval: 3600 # 1時間ごと
+
+# Swagger/OpenAPI設定
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: com.skishop.coupon.controller

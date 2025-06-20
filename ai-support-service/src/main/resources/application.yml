@@ -1,0 +1,120 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: ai-support-service
+  
+  # Disable JPA auto-configuration since we're using MongoDB
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+  
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/ai_support_db
+      database: ai_support_db
+      
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000 # 1時間
+      cache-null-values: false
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/skishop}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8080/realms/skishop/protocol/openid-connect/certs}
+
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+        bindings:
+          ai-events-out-0:
+            destination: ai.events
+            content-type: application/json
+            producer:
+              configuration:
+                key.serializer: org.apache.kafka.common.serialization.StringSerializer
+                value.serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# Azure OpenAI Configuration - Updated for LangChain4j 1.1.0
+azure:
+  openai:
+    api-key: ${AZURE_OPENAI_KEY:your-api-key}
+    endpoint: ${AZURE_OPENAI_ENDPOINT:https://your-resource.openai.azure.com/}
+    deployment-name: ${AZURE_OPENAI_DEPLOYMENT_NAME:gpt-4o}
+    embedding-deployment-name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME:text-embedding-3-small}
+    api-version: ${AZURE_OPENAI_API_VERSION:2024-02-15-preview}
+    temperature: 0.7
+    max-tokens: 2000
+    timeout: 60s
+    max-retries: 3
+
+# Management and Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.skishop.ai: DEBUG
+    org.springframework.ai: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Vector Database Configuration
+vector:
+  database:
+    type: ${VECTOR_DB_TYPE:pinecone}
+    pinecone:
+      api-key: ${PINECONE_API_KEY:your-pinecone-api-key}
+      index-name: ${PINECONE_INDEX_NAME:ski-shop-products}
+      environment: ${PINECONE_ENVIRONMENT:us-west1-gcp}
+    azure-search:
+      endpoint: ${AZURE_SEARCH_ENDPOINT:https://your-search-service.search.windows.net}
+      api-key: ${AZURE_SEARCH_API_KEY:your-search-api-key}
+      index-name: ${AZURE_SEARCH_INDEX_NAME:ski-shop-products}
+
+# Business Configuration
+business:
+  recommendation:
+    max-results: 10
+    cache-ttl: 3600
+    algorithms:
+      - collaborative-filtering
+      - content-based
+      - hybrid
+  chatbot:
+    max-conversation-length: 50
+    session-timeout: 1800
+    default-language: ja
+  search:
+    max-results: 50
+    autocomplete-max-results: 10

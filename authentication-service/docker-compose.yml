@@ -1,0 +1,117 @@
+services:
+  # PostgreSQL Database for Authentication Service
+  # auth-postgres:
+  #   image: postgres:15-alpine
+  #   container_name: auth-postgres
+  #   environment:
+  #     POSTGRES_DB: skishop_auth
+  #     POSTGRES_USER: auth_user
+  #     POSTGRES_PASSWORD: auth_password
+  #     POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - auth_postgres_data:/var/lib/postgresql/data
+  #     - ./init-auth-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+  #   networks:
+  #     - auth-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U auth_user -d skishop_auth"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+
+  # Redis for Authentication Service
+  auth-redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - auth_redis_data:/data
+    networks:
+      - auth-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: redis-server --appendonly yes
+
+  # Authentication Service
+  authentication-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: authentication-service
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: local
+      
+      # Database Configuration
+      DB_URL: jdbc:postgresql://auth-postgres:5432/skishop_auth
+      DB_USERNAME: auth_user
+      DB_PASSWORD: auth_password
+      DDL_AUTO: update
+      SHOW_SQL: "false"
+      
+      # Redis Configuration
+      REDIS_HOST: auth-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      
+      # Azure AD Configuration (DISABLED for local)
+      AZURE_TENANT_ID: "disabled-for-local"
+      AZURE_CLIENT_ID: "disabled-for-local"
+      AZURE_CLIENT_SECRET: "disabled-for-local"
+      AZURE_APP_ID_URI: "api://disabled-for-local"
+      
+      # JWT Configuration
+      JWT_SECRET: "test-secret-key-for-jwt-that-is-long-enough-for-hs512-algorithm-and-secure-testing-with-additional-length-to-meet-512-bit-requirement-exactly-64-chars"
+      JWT_ISSUER: "SkiShop-Auth-Local"
+      JWT_ACCESS_EXPIRATION: "3600"
+      JWT_REFRESH_EXPIRATION: "604800"
+      
+      # Logging Configuration
+      LOG_LEVEL: DEBUG
+      SECURITY_LOG_LEVEL: DEBUG
+      WEB_LOG_LEVEL: INFO
+      
+      # Application Configuration
+      SKISHOP_AUTH_ENABLE: "false"
+      SKISHOP_MFA_ENABLE: "false"
+      
+      # JVM Options
+      JAVA_OPTS: "-Xmx512m -Xms256m -Djava.security.egd=file:/dev/./urandom"
+      
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - auth-network
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      auth-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+networks:
+  auth-network:
+    driver: bridge
+    name: authentication-service-network
+
+volumes:
+  auth_postgres_data:
+    name: auth_postgres_data
+  auth_redis_data:
+    name: auth_redis_data

@@ -1,0 +1,138 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: authentication-service
+  
+  # Microsoft Entra ID Configuration
+  cloud:
+    azure:
+      active-directory:
+        enabled: true
+        profile:
+          tenant-id: ${AZURE_TENANT_ID:your-tenant-id-here}
+        credential:
+          client-id: ${AZURE_CLIENT_ID:your-client-id-here}
+          client-secret: ${AZURE_CLIENT_SECRET:your-client-secret-here}
+        app-id-uri: ${AZURE_APP_ID_URI:api://your-app-id-here}
+        authorization-clients:
+          graph:
+            scopes: https://graph.microsoft.com/User.Read
+  
+  # OAuth2 Client Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID:your-client-id-here}
+            client-secret: ${AZURE_CLIENT_SECRET:your-client-secret-here}
+            scope: openid,profile,User.Read
+        provider:
+          azure:
+            issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID:your-tenant-id-here}/v2.0
+
+  # Database Configuration
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/skishop_auth}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        '[format_sql]': true
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: auth-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+# Logging Configuration
+logging:
+  level:
+    '[com.skishop.auth]': ${LOG_LEVEL:INFO}
+    '[org.springframework.security]': ${SECURITY_LOG_LEVEL:INFO}
+    '[org.springframework.web]': ${WEB_LOG_LEVEL:INFO}
+    '[com.azure.spring]': DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management and Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Application Specific Configuration
+app:
+  protect:
+    authenticated: /token_details,/call_graph,/profile,/admin/**
+  
+# JWT Configuration (for internal token management if needed)
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-for-jwt-that-is-long-enough-for-hs512-algorithm-and-secure-testing-with-additional-length-to-meet-512-bit-requirement-exactly-64-chars}
+  issuer: ${JWT_ISSUER:SkiShop-Auth}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:3600}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800}
+
+# Skishop Runtime Configuration
+skishop:
+  runtime:
+    # Event propagation configuration
+    event-propagation-enabled: ${SKISHOP_EVENT_PROPAGATION_ENABLED:false}
+    event-broker-type: ${SKISHOP_EVENT_BROKER_TYPE:redis}
+    event-max-retries: ${SKISHOP_EVENT_MAX_RETRIES:3}
+    event-timeout-ms: ${SKISHOP_EVENT_TIMEOUT_MS:30000}
+    event-redis-key-prefix: ${SKISHOP_EVENT_REDIS_KEY_PREFIX:skishop}
+    event-concurrency: ${SKISHOP_EVENT_CONCURRENCY:4}
+    event-persistence-enabled: ${SKISHOP_EVENT_PERSISTENCE_ENABLED:true}
+    processed-event-retention-days: ${SKISHOP_PROCESSED_EVENT_RETENTION_DAYS:30}
+    debug-mode: ${SKISHOP_DEBUG_MODE:false}
+    environment: ${SKISHOP_ENVIRONMENT:local}
+
+# Resilience4j Configuration
+resilience4j:
+  retry:
+    instances:
+      event-publishing:
+        max-attempts: ${SKISHOP_EVENT_MAX_RETRIES:3}
+        wait-duration: 1000ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - org.springframework.dao.DataAccessException

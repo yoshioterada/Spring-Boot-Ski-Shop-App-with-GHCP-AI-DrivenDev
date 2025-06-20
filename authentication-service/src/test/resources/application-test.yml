@@ -1,0 +1,101 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.cloud.azure.autoconfigure.aad.AadAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+  
+  # データベース設定（テスト用H2）
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  
+  # JPA設定
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        '[format_sql]': false
+  
+  h2:
+    console:
+      enabled: true
+  
+  # Azure Active Directory設定（テスト時無効化）
+  cloud:
+    azure:
+      active-directory:
+        enabled: false
+  
+  # OAuth2設定（テスト時無効化）
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: test-client-id
+            client-secret: test-client-secret
+            scope: openid,profile
+        provider:
+          azure:
+            issuer-uri: http://localhost:8080/test-issuer
+        
+  # データ用Redis設定（テスト時無効化）
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  
+  # Kafka設定（テスト時無効化）
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: auth-service-test
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+# JWT設定（512ビット以上のシークレットキー）
+jwt:
+  secret: test-secret-key-for-jwt-that-is-long-enough-for-hs512-algorithm-and-secure-testing-with-additional-length-to-meet-512-bit-requirement
+  expiration: 3600000 # 1時間
+  refresh-expiration: 604800000 # 7日間
+
+# アプリケーション設定
+app:
+  security:
+    password-min-length: 8
+    max-login-attempts: 5
+    lockout-duration: 900000 # 15分間
+    session-timeout: 1800000 # 30分間
+  
+  mfa:
+    enabled: false # テスト時は無効化
+    window-size: 3
+    issuer: "SkiShop Test"
+
+# ログ設定
+logging:
+  level:
+    '[com.skishop.auth]': DEBUG
+    '[org.springframework.security]': DEBUG
+    '[org.springframework.web]': INFO
+    '[org.springframework.kafka]': WARN
+    '[org.springframework.data.redis]': WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
