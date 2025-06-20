@@ -170,3 +170,17 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
   packages-to-scan: com.skishop.auth.controller
+
+# Skishop Event Propagation Configuration for Local Development
+skishop:
+  runtime:
+    event-propagation-enabled: true
+    event-broker-type: redis
+    event-max-retries: 3
+    event-timeout-ms: 30000
+    event-redis-key-prefix: skishop-local
+    event-concurrency: 2
+    event-persistence-enabled: true
+    processed-event-retention-days: 7
+    debug-mode: true
+    environment: local

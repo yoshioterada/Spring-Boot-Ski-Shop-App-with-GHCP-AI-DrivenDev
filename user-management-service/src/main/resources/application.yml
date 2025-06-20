@@ -210,21 +210,6 @@ springdoc:
     tags-sorter: alpha
   packages-to-scan: com.skishop.user.controller
 
-# Skishop Runtime Configuration
-skishop:
-  runtime:
-    # Event propagation configuration
-    event-propagation-enabled: ${SKISHOP_EVENT_PROPAGATION_ENABLED:false}
-    event-broker-type: ${SKISHOP_EVENT_BROKER_TYPE:redis}
-    event-max-retries: ${SKISHOP_EVENT_MAX_RETRIES:3}
-    event-timeout-ms: ${SKISHOP_EVENT_TIMEOUT_MS:30000}
-    event-redis-key-prefix: ${SKISHOP_EVENT_REDIS_KEY_PREFIX:skishop}
-    event-concurrency: ${SKISHOP_EVENT_CONCURRENCY:4}
-    event-persistence-enabled: ${SKISHOP_EVENT_PERSISTENCE_ENABLED:true}
-    processed-event-retention-days: ${SKISHOP_PROCESSED_EVENT_RETENTION_DAYS:30}
-    debug-mode: ${SKISHOP_DEBUG_MODE:false}
-    environment: ${SKISHOP_ENVIRONMENT:local}
-
 # Resilience4j Configuration
 resilience4j:
   retry:
