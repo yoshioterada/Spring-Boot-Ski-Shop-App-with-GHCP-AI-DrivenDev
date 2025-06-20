@@ -28,6 +28,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * メールアドレスの存在確認
      */
     boolean existsByEmail(String email);
+    
+    /**
+     * ユーザー名の存在確認
+     */
+    boolean existsByUsername(String username);
 
     /**
      * アクティブなユーザーをメールアドレスで検索

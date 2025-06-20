@@ -21,4 +21,10 @@ public class MfaVerificationRequest {
     
     private String sessionId;
     private String backupCode;
+    
+    // Manual getter methods since Lombok may not be working properly
+    public String getSessionId() { return sessionId; }
+    public String getMfaCode() { return mfaCode; }
+    public String getTempToken() { return tempToken; }
+    public String getBackupCode() { return backupCode; }
 }

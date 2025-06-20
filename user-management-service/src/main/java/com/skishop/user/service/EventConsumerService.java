@@ -2,6 +2,7 @@ package com.skishop.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skishop.user.config.SkishopRuntimeProperties;
+import com.skishop.user.dto.EventDto;
 import com.skishop.user.entity.ProcessedEvent;
 import com.skishop.user.repository.ProcessedEventRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -26,6 +28,7 @@ public class EventConsumerService implements MessageListener {
     private final SkishopRuntimeProperties runtimeProperties;
     private final ProcessedEventRepository processedEventRepository;
     private final UserService userService;
+    private final StatusFeedbackPublishingService statusFeedbackService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -57,31 +60,61 @@ public class EventConsumerService implements MessageListener {
      */
     @Transactional
     public void handleUserRegisteredEvent(String eventJson) {
+        long startTime = System.currentTimeMillis();
+        String sagaId = null;
+        String originalEventId = null;
+        String userId = null;
+        
         try {
-            UserRegisteredEvent event = objectMapper.readValue(eventJson, UserRegisteredEvent.class);
+            EventDto event = objectMapper.readValue(eventJson, EventDto.class);
+            Map<String, Object> payload = (Map<String, Object>) event.getPayload();
+            
+            sagaId = event.getSagaId();
+            originalEventId = event.getEventId();
+            userId = (String) payload.get("userId");
+            String email = (String) payload.get("email");
+            String firstName = (String) payload.get("firstName");
+            String lastName = (String) payload.get("lastName");
+            String phoneNumber = (String) payload.get("phoneNumber");
             
             // 重複処理チェック
-            if (isEventAlreadyProcessed(event.getSagaId())) {
-                log.info("Event already processed, skipping: {}", event.getSagaId());
+            if (isEventAlreadyProcessed(sagaId)) {
+                log.info("Event already processed, skipping: {}", sagaId);
                 return;
             }
 
-            log.info("Processing user registration event for user: {}", event.getUserId());
+            log.info("Processing user registration event for user: {} (saga: {})", userId, sagaId);
 
             // ユーザー管理サービス側での処理
             userService.handleUserRegisteredFromAuth(
-                event.getUserId(),
-                event.getUsername(),
-                event.getEmail()
+                UUID.fromString(userId),
+                email,
+                firstName,
+                lastName,
+                phoneNumber
             );
 
             // 処理済みイベントとして記録
-            markEventAsProcessed(event.getSagaId(), "USER_REGISTERED", event.getUserId());
+            markEventAsProcessed(sagaId, "USER_REGISTERED", UUID.fromString(userId), true, null);
             
-            log.info("Successfully processed user registration event for user: {}", event.getUserId());
+            // 成功ステータスをAuthentication-serviceに送信
+            long processingTime = System.currentTimeMillis() - startTime;
+            statusFeedbackService.publishSuccessStatus(sagaId, userId, originalEventId, processingTime);
+            
+            log.info("Successfully processed user registration event for user: {} (saga: {})", userId, sagaId);
             
         } catch (Exception e) {
-            log.error("Failed to handle user registration event: {}", e.getMessage(), e);
+            log.error("Failed to handle user registration event (saga: {}): {}", sagaId, e.getMessage(), e);
+            
+            // 失敗イベントとして記録
+            if (sagaId != null && userId != null) {
+                markEventAsProcessed(sagaId, "USER_REGISTERED", UUID.fromString(userId), false, e.getMessage());
+                
+                // 失敗ステータスをAuthentication-serviceに送信
+                long processingTime = System.currentTimeMillis() - startTime;
+                statusFeedbackService.publishFailureStatus(sagaId, userId, originalEventId, e.getMessage(), processingTime);
+            }
+            
             throw new RuntimeException("Failed to process user registration event", e);
         }
     }
@@ -91,30 +124,55 @@ public class EventConsumerService implements MessageListener {
      */
     @Transactional
     public void handleUserDeletedEvent(String eventJson) {
+        long startTime = System.currentTimeMillis();
+        String sagaId = null;
+        String originalEventId = null;
+        String userId = null;
+        
         try {
-            UserDeletedEvent event = objectMapper.readValue(eventJson, UserDeletedEvent.class);
+            EventDto event = objectMapper.readValue(eventJson, EventDto.class);
+            Map<String, Object> payload = (Map<String, Object>) event.getPayload();
+            
+            sagaId = event.getSagaId();
+            originalEventId = event.getEventId();
+            userId = (String) payload.get("userId");
+            String reason = (String) payload.get("reason");
             
             // 重複処理チェック
-            if (isEventAlreadyProcessed(event.getSagaId())) {
-                log.info("Event already processed, skipping: {}", event.getSagaId());
+            if (isEventAlreadyProcessed(sagaId)) {
+                log.info("Event already processed, skipping: {}", sagaId);
                 return;
             }
 
-            log.info("Processing user deletion event for user: {}", event.getUserId());
+            log.info("Processing user deletion event for user: {} (saga: {})", userId, sagaId);
 
             // ユーザー管理サービス側での処理
             userService.handleUserDeletedFromAuth(
-                event.getUserId(),
-                event.getReason()
+                UUID.fromString(userId),
+                reason
             );
 
             // 処理済みイベントとして記録
-            markEventAsProcessed(event.getSagaId(), "USER_DELETED", event.getUserId());
+            markEventAsProcessed(sagaId, "USER_DELETED", UUID.fromString(userId), true, null);
             
-            log.info("Successfully processed user deletion event for user: {}", event.getUserId());
+            // 成功ステータスをAuthentication-serviceに送信
+            long processingTime = System.currentTimeMillis() - startTime;
+            statusFeedbackService.publishSuccessStatus(sagaId, userId, originalEventId, processingTime);
+            
+            log.info("Successfully processed user deletion event for user: {} (saga: {})", userId, sagaId);
             
         } catch (Exception e) {
-            log.error("Failed to handle user deletion event: {}", e.getMessage(), e);
+            log.error("Failed to handle user deletion event (saga: {}): {}", sagaId, e.getMessage(), e);
+            
+            // 失敗イベントとして記録
+            if (sagaId != null && userId != null) {
+                markEventAsProcessed(sagaId, "USER_DELETED", UUID.fromString(userId), false, e.getMessage());
+                
+                // 失敗ステータスをAuthentication-serviceに送信
+                long processingTime = System.currentTimeMillis() - startTime;
+                statusFeedbackService.publishFailureStatus(sagaId, userId, originalEventId, e.getMessage(), processingTime);
+            }
+            
             throw new RuntimeException("Failed to process user deletion event", e);
         }
     }
@@ -129,11 +187,13 @@ public class EventConsumerService implements MessageListener {
     /**
      * イベントを処理済みとして記録
      */
-    private void markEventAsProcessed(String sagaId, String eventType, UUID userId) {
+    private void markEventAsProcessed(String sagaId, String eventType, UUID userId, boolean success, String errorMessage) {
         ProcessedEvent processedEvent = ProcessedEvent.builder()
             .sagaId(sagaId)
             .eventType(eventType)
             .userId(userId)
+            .success(success)
+            .errorMessage(errorMessage)
             .processedAt(LocalDateTime.now())
             .build();
         
@@ -152,61 +212,4 @@ public class EventConsumerService implements MessageListener {
         return "unknown";
     }
 
-    /**
-     * ユーザー登録イベントのデータクラス
-     */
-    public static class UserRegisteredEvent {
-        private String sagaId;
-        private UUID userId;
-        private String username;
-        private String email;
-        private long timestamp;
-        private String source;
-
-        // Getters and Setters
-        public String getSagaId() { return sagaId; }
-        public void setSagaId(String sagaId) { this.sagaId = sagaId; }
-        
-        public UUID getUserId() { return userId; }
-        public void setUserId(UUID userId) { this.userId = userId; }
-        
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        
-        public long getTimestamp() { return timestamp; }
-        public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-        
-        public String getSource() { return source; }
-        public void setSource(String source) { this.source = source; }
-    }
-
-    /**
-     * ユーザー削除イベントのデータクラス
-     */
-    public static class UserDeletedEvent {
-        private String sagaId;
-        private UUID userId;
-        private String reason;
-        private long timestamp;
-        private String source;
-
-        // Getters and Setters
-        public String getSagaId() { return sagaId; }
-        public void setSagaId(String sagaId) { this.sagaId = sagaId; }
-        
-        public UUID getUserId() { return userId; }
-        public void setUserId(UUID userId) { this.userId = userId; }
-        
-        public String getReason() { return reason; }
-        public void setReason(String reason) { this.reason = reason; }
-        
-        public long getTimestamp() { return timestamp; }
-        public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-        
-        public String getSource() { return source; }
-        public void setSource(String source) { this.source = source; }
-    }
 }

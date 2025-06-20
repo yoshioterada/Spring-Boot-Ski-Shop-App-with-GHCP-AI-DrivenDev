@@ -55,7 +55,7 @@ spring:
           max-idle: 8
           min-idle: 0
   
-  # Kafka設定
+  # Kafka設定 (local development)
   cloud:
     stream:
       kafka:
@@ -72,6 +72,21 @@ spring:
         userDeleted-out-0:
           destination: user.deleted
           content-type: application/json
+    
+    # Azure Service Bus Configuration (for production)
+    azure:
+      servicebus:
+        connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}
+        namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+        processor:
+          max-concurrent-calls: ${AZURE_SERVICEBUS_MAX_CONCURRENT_CALLS:4}
+          max-auto-lock-renew-duration: PT5M
+          session-idle-timeout: PT1M
+        producer:
+          retry:
+            max-retries: ${AZURE_SERVICEBUS_MAX_RETRIES:3}
+            delay: PT1S
+            max-delay: PT30S
   
   # キャッシュ設定
   cache:
@@ -161,6 +176,15 @@ skishop:
     processed-event-retention-days: ${SKISHOP_PROCESSED_EVENT_RETENTION_DAYS:30}
     debug-mode: ${SKISHOP_DEBUG_MODE:false}
     environment: ${SKISHOP_ENVIRONMENT:local}
+    
+    # Azure Service Bus configuration
+    azure-servicebus:
+      enabled: ${SKISHOP_AZURE_SERVICEBUS_ENABLED:false}
+      topic-name: ${SKISHOP_AZURE_SERVICEBUS_TOPIC:skishop-events}
+      subscription-name: ${SKISHOP_AZURE_SERVICEBUS_SUBSCRIPTION:user-service-subscription}
+      status-feedback-topic: ${SKISHOP_AZURE_SERVICEBUS_STATUS_FEEDBACK_TOPIC:skishop-status-feedback}
+      dlq-enabled: ${SKISHOP_AZURE_SERVICEBUS_DLQ_ENABLED:true}
+      max-delivery-count: ${SKISHOP_AZURE_SERVICEBUS_MAX_DELIVERY_COUNT:3}
     
     # メール認証設定
     email-verification:

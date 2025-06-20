@@ -1,0 +1,237 @@
+package com.skishop.auth.service.health;
+
+import com.skishop.auth.config.SkishopRuntimeProperties;
+import com.skishop.auth.service.monitoring.SagaStatusMonitoringService;
+import com.skishop.auth.service.azure.AzureServiceBusEventPublisher;
+import com.skishop.auth.service.azure.AzureServiceBusStatusFeedbackReceiver;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.actuator.health.Health;
+import org.springframework.boot.actuator.health.HealthIndicator;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * イベント伝播システムの包括的なヘルスチェック
+ */
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class EventSystemHealthIndicator implements HealthIndicator {
+
+    private final SkishopRuntimeProperties runtimeProperties;
+    private final SagaStatusMonitoringService sagaMonitoringService;
+    private final DataSource dataSource;
+    private final RedisTemplate<String, Object> redisTemplate;
+    
+    // Azure Service Bus コンポーネント - オプショナル（本番環境でのみ利用可能）
+    @Autowired(required = false)
+    private AzureServiceBusEventPublisher azureServiceBusEventPublisher;
+    
+    @Autowired(required = false)
+    private AzureServiceBusStatusFeedbackReceiver azureServiceBusStatusFeedbackReceiver;
+
+    @Override
+    public Health health() {
+        Health.Builder builder = Health.up();
+        Map<String, Object> details = new HashMap<>();
+
+        try {
+            // イベント伝播が有効かチェック
+            checkEventPropagationStatus(builder, details);
+            
+            // データベース接続チェック
+            checkDatabaseConnection(builder, details);
+            
+            // Redis接続チェック
+            checkRedisConnection(builder, details);
+            
+            // Sagaシステムの健全性チェック
+            checkSagaSystemHealth(builder, details);
+            
+            // Azure Service Bus 健全性チェック（利用可能な場合）
+            checkAzureServiceBusHealth(builder, details);
+            
+            // システムリソースチェック
+            checkSystemResources(builder, details);
+            
+            builder.withDetails(details);
+            
+        } catch (Exception e) {
+            log.error("Health check failed: {}", e.getMessage(), e);
+            builder.down()
+                .withDetail("error", e.getMessage())
+                .withDetails(details);
+        }
+
+        return builder.build();
+    }
+
+    private void checkEventPropagationStatus(Health.Builder builder, Map<String, Object> details) {
+        boolean enabled = runtimeProperties.isEventPropagationEnabled();
+        details.put("eventPropagation.enabled", enabled);
+        details.put("eventPropagation.brokerType", runtimeProperties.getEventBrokerType());
+        details.put("eventPropagation.environment", runtimeProperties.getEnvironment());
+        
+        if (!enabled) {
+            builder.down();
+            details.put("eventPropagation.status", "DISABLED");
+        } else {
+            details.put("eventPropagation.status", "ENABLED");
+        }
+    }
+
+    private void checkDatabaseConnection(Health.Builder builder, Map<String, Object> details) {
+        try (Connection connection = dataSource.getConnection()) {
+            boolean isValid = connection.isValid(5);
+            details.put("database.connection", isValid ? "UP" : "DOWN");
+            details.put("database.url", maskConnectionString(connection.getMetaData().getURL()));
+            
+            if (!isValid) {
+                builder.down();
+            }
+        } catch (Exception e) {
+            details.put("database.connection", "DOWN");
+            details.put("database.error", e.getMessage());
+            builder.down();
+        }
+    }
+
+    private void checkRedisConnection(Health.Builder builder, Map<String, Object> details) {
+        try {
+            RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
+            String pong = connection.ping();
+            details.put("redis.connection", "PONG".equals(pong) ? "UP" : "DOWN");
+            details.put("redis.brokerType", runtimeProperties.getEventBrokerType());
+            
+            if (!"PONG".equals(pong)) {
+                builder.down();
+            }
+            
+            connection.close();
+        } catch (Exception e) {
+            details.put("redis.connection", "DOWN");
+            details.put("redis.error", e.getMessage());
+            if ("redis".equals(runtimeProperties.getEventBrokerType())) {
+                builder.down(); // Redisをメインで使用している場合のみDOWN
+            }
+        }
+    }
+
+    private void checkSagaSystemHealth(Health.Builder builder, Map<String, Object> details) {
+        try {
+            var overview = sagaMonitoringService.getActiveSagaOverview();
+            details.put("saga.activeSagas", overview.getTotalActiveSagas());
+            details.put("saga.timedOutCount", overview.getTimedOutCount());
+            details.put("saga.stuckCount", overview.getStuckCount());
+            
+            // 警告レベルのチェック
+            if (overview.getTimedOutCount() > 10) {
+                builder.down();
+                details.put("saga.status", "TOO_MANY_TIMEOUTS");
+            } else if (overview.getStuckCount() > 5) {
+                details.put("saga.status", "WARNING_STUCK_SAGAS");
+                // WARNINGレベルなのでDOWNにはしない
+            } else if (overview.getTotalActiveSagas() > 1000) {
+                details.put("saga.status", "WARNING_HIGH_LOAD");
+            } else {
+                details.put("saga.status", "HEALTHY");
+            }
+            
+            // パフォーマンス統計
+            var stats = sagaMonitoringService.getSagaPerformanceStats(Duration.ofHours(1));
+            details.put("saga.hourlyStats.total", stats.getTotalSagas());
+            
+        } catch (Exception e) {
+            details.put("saga.status", "ERROR");
+            details.put("saga.error", e.getMessage());
+            log.warn("Failed to check saga system health: {}", e.getMessage());
+        }
+    }
+
+    private void checkAzureServiceBusHealth(Health.Builder builder, Map<String, Object> details) {
+        try {
+            boolean azureServiceBusAvailable = false;
+            
+            if (azureServiceBusEventPublisher != null) {
+                // Azure Service Bus Publisher 健全性チェック
+                boolean isPublisherHealthy = azureServiceBusEventPublisher.isHealthy();
+                details.put("azureServiceBus.publisher.status", isPublisherHealthy ? "UP" : "DOWN");
+                azureServiceBusAvailable = true;
+                
+                if (!isPublisherHealthy) {
+                    builder.down();
+                }
+            }
+            
+            if (azureServiceBusStatusFeedbackReceiver != null) {
+                // ステータスフィードバック受信者の健全性チェック
+                boolean isReceiverHealthy = azureServiceBusStatusFeedbackReceiver.isHealthy();
+                details.put("azureServiceBus.receiver.status", isReceiverHealthy ? "UP" : "DOWN");
+                azureServiceBusAvailable = true;
+                
+                if (!isReceiverHealthy) {
+                    builder.down();
+                }
+            }
+            
+            if (!azureServiceBusAvailable) {
+                details.put("azureServiceBus.status", "NOT_CONFIGURED");
+                details.put("azureServiceBus.note", "Azure Service Bus is not enabled for this environment");
+            } else {
+                details.put("azureServiceBus.status", "CONFIGURED");
+            }
+            
+        } catch (Exception e) {
+            details.put("azureServiceBus.status", "ERROR");
+            details.put("azureServiceBus.error", e.getMessage());
+            log.warn("Failed to check Azure Service Bus health: {}", e.getMessage());
+            // Azure Service Bus のエラーはシステム全体をダウンさせない
+        }
+    }
+
+    private void checkSystemResources(Health.Builder builder, Map<String, Object> details) {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            long maxMemory = runtime.maxMemory();
+            long totalMemory = runtime.totalMemory();
+            long freeMemory = runtime.freeMemory();
+            long usedMemory = totalMemory - freeMemory;
+            
+            double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
+            
+            details.put("memory.used", usedMemory);
+            details.put("memory.free", freeMemory);
+            details.put("memory.total", totalMemory);
+            details.put("memory.max", maxMemory);
+            details.put("memory.usagePercent", String.format("%.2f%%", memoryUsagePercent));
+            
+            if (memoryUsagePercent > 90) {
+                builder.down();
+                details.put("memory.status", "CRITICAL");
+            } else if (memoryUsagePercent > 80) {
+                details.put("memory.status", "WARNING");
+            } else {
+                details.put("memory.status", "HEALTHY");
+            }
+            
+        } catch (Exception e) {
+            details.put("memory.status", "ERROR");
+            details.put("memory.error", e.getMessage());
+        }
+    }
+
+    private String maskConnectionString(String url) {
+        if (url == null) return "unknown";
+        return url.replaceAll("password=[^;]+", "password=****")
+                 .replaceAll("Password=[^;]+", "Password=****");
+    }
+}

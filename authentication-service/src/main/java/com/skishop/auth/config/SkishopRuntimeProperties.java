@@ -47,6 +47,23 @@ public class SkishopRuntimeProperties {
     private boolean debugMode = false;
     
     /**
+     * イベントブローカータイプ
+     */
+    private String eventBrokerType = "redis";
+    
+    /**
+     * イベントタイムアウト（ミリ秒）
+     */
+    private long eventTimeoutMs = 30000;
+    
+    /**
+     * Redis キープレフィックス
+     */
+    private String eventRedisKeyPrefix = "skishop";
+    
+
+    
+    /**
      * Sagaタイムアウト設定
      */
     private SagaConfig saga = new SagaConfig();
@@ -72,5 +89,26 @@ public class SkishopRuntimeProperties {
         private Duration initialDelay = Duration.ofMillis(1000);
         private double multiplier = 2.0;
         private Duration maxDelay = Duration.ofMillis(10000);
+    }
+    
+    // メソッド
+    public boolean isEventPropagationEnabled() {
+        return eventPropagationEnabled;
+    }
+    
+    public String getEventBrokerType() {
+        return eventBrokerType;
+    }
+    
+    public long getEventTimeoutMs() {
+        return eventTimeoutMs;
+    }
+    
+    public String getEventRedisKeyPrefix() {
+        return eventRedisKeyPrefix;
+    }
+    
+    public String getEnvironment() {
+        return environment.name().toLowerCase();
     }
 }

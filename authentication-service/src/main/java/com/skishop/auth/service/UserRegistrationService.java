@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -53,8 +54,6 @@ public class UserRegistrationService {
             .lastName(request.getLastName())
             .status("PENDING")
             .emailVerified(false)
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
             .build();
 
         // データベースに保存
@@ -66,7 +65,10 @@ public class UserRegistrationService {
             eventPublishingService.publishUserRegisteredEvent(
                 savedUser.getId(),
                 savedUser.getUsername(),
-                savedUser.getEmail()
+                savedUser.getEmail(),
+                savedUser.getFirstName(),
+                savedUser.getLastName(),
+                null // phoneNumber - not available in the current registration request
             );
             log.info("User registration event published for user: {}", savedUser.getId());
         } catch (Exception e) {
@@ -83,8 +85,10 @@ public class UserRegistrationService {
             .lastName(savedUser.getLastName())
             .status(savedUser.getStatus())
             .emailVerified(savedUser.isEmailVerified())
-            .createdAt(savedUser.getCreatedAt())
-            .updatedAt(savedUser.getUpdatedAt())
+            .createdAt(savedUser.getCreatedAt() != null ? 
+                LocalDateTime.ofInstant(savedUser.getCreatedAt(), java.time.ZoneOffset.UTC) : null)
+            .updatedAt(savedUser.getUpdatedAt() != null ? 
+                LocalDateTime.ofInstant(savedUser.getUpdatedAt(), java.time.ZoneOffset.UTC) : null)
             .build();
     }
 
@@ -111,7 +115,6 @@ public class UserRegistrationService {
 
         // ユーザーを論理削除（物理削除ではなく状態変更）
         user.setStatus("DELETED");
-        user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
         
         log.info("User {} marked as deleted", userId);

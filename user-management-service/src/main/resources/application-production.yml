@@ -14,9 +14,33 @@ skishop:
     processed-event-retention-days: 90
     debug-mode: false
     environment: production
+    
+    # Azure Service Bus 設定
+    azure-servicebus:
+      enabled: true
+      topic-name: skishop-events-prod
+      subscription-name: user-service-subscription
+      status-feedback-topic: skishop-status-feedback-prod
+      dlq-enabled: true
+      max-delivery-count: 5
 
 # Redis Configuration for Production
 spring:
+  # Azure Service Bus Configuration for Production
+  cloud:
+    azure:
+      servicebus:
+        namespace: ${AZURE_SERVICEBUS_NAMESPACE}
+        processor:
+          max-concurrent-calls: 10
+          max-auto-lock-renew-duration: PT10M
+          session-idle-timeout: PT5M
+        producer:
+          retry:
+            max-retries: 5
+            delay: PT2S
+            max-delay: PT60S
+
   data:
     redis:
       host: ${REDIS_HOST}

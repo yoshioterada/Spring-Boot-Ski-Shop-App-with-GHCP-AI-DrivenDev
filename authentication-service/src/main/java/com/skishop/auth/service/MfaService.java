@@ -4,7 +4,6 @@ import com.skishop.auth.dto.LoginResponse;
 import com.skishop.auth.dto.MfaVerificationRequest;
 import com.skishop.auth.entity.UserMFA;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +17,13 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional
 public class MfaService {
 
     private final EntityManager entityManager;
+    
+    // Manual log field since Lombok @Slf4j may not be working properly
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(MfaService.class);
 
     /**
      * MFAコードを検証

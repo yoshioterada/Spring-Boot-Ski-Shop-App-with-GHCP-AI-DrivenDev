@@ -32,6 +32,9 @@ public class User {
 
     @Column(unique = true, nullable = false, length = 255)
     private String email;
+    
+    @Column(unique = true, length = 100)
+    private String username;
 
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
@@ -41,6 +44,9 @@ public class User {
 
     @Column(name = "last_name", length = 100)
     private String lastName;
+    
+    @Column(name = "status", length = 50)
+    private String status; // PENDING_VERIFICATION, ACTIVE, SUSPENDED, etc.
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
@@ -100,6 +106,34 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<OAuthAccount> oauthAccounts = new ArrayList<>();
+
+    /**
+     * Get username
+     */
+    public String getUsername() {
+        return this.username;
+    }
+    
+    /**
+     * Get status
+     */
+    public String getStatus() {
+        return this.status;
+    }
+    
+    /**
+     * Set status
+     */
+    public void setStatus(String status) {
+        this.status = status;
+    }
+    
+    /**
+     * Check if email is verified
+     */
+    public boolean isEmailVerified() {
+        return emailVerified != null && emailVerified;
+    }
 
     /**
      * ユーザーがロックされているかチェック

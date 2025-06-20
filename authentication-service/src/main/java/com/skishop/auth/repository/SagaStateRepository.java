@@ -1,6 +1,7 @@
 package com.skishop.auth.repository;
 
 import com.skishop.auth.entity.SagaState;
+import com.skishop.auth.enums.SagaStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,7 +15,7 @@ import java.util.Optional;
  * Sagaの状態を管理するリポジトリ
  */
 @Repository
-public interface SagaStateRepository extends JpaRepository<SagaState, String> {
+public interface SagaStateRepository extends JpaRepository<SagaState, Long> {
     
     /**
      * Saga IDでSagaを検索
@@ -53,4 +54,30 @@ public interface SagaStateRepository extends JpaRepository<SagaState, String> {
      * 特定の状態のSagaを検索
      */
     List<SagaState> findByState(String state);
+    
+    /**
+     * タイムアウトしたSagaを検索（補償処理用）
+     */
+    List<SagaState> findBySagaStatusAndTimeoutAtBefore(SagaStatus sagaStatus, Instant timeoutBefore);
+    
+    /**
+     * 補償が必要なSagaを検索
+     */
+    @Query("SELECT s FROM SagaState s WHERE s.sagaStatus = :sagaStatus AND s.errorReason IS NOT NULL")
+    List<SagaState> findBySagaStatusAndErrorReasonIsNotNull(@Param("sagaStatus") SagaStatus sagaStatus);
+    
+    /**
+     * 指定されたステータス以外のSagaを検索
+     */
+    List<SagaState> findBySagaStatusNotIn(List<SagaStatus> statuses);
+    
+    /**
+     * 指定時間以降に開始されたSagaを検索
+     */
+    List<SagaState> findByStartTimeAfter(Instant startTime);
+    
+    /**
+     * 完了したSagaで終了時間があるものを検索
+     */
+    List<SagaState> findBySagaStatusAndEndTimeIsNotNull(SagaStatus sagaStatus);
 }

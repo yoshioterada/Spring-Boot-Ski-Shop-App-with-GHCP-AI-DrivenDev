@@ -147,6 +147,11 @@
             <artifactId>azure-identity</artifactId>
             <version>${azure.version}</version>
         </dependency>
+            <dependency>
+                <groupId>com.azure</groupId>
+                <artifactId>azure-messaging-servicebus</artifactId>
+                <version>7.15.1</version>
+            </dependency>
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-security-keyvault-secrets</artifactId>
