@@ -941,769 +941,368 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 curl http://localhost:8080/actuator/health
 curl http://localhost:8081/actuator/health
 
-# Redis Streams確認
-curl http://localhost:8081:8081  # Redis Commander
+# ユーザー登録テスト
+curl -X POST http://localhost:8080/api/auth/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "email": "test@example.com",
+    "password": "password123",
+    "firstName": "Test",
+    "lastName": "User"
+  }'
 ```
 
-### 本番環境の構築
+### 本番環境の設定
 
-#### 前提条件
+#### Azure リソースの作成
 
-- Azure サブスクリプション
-- Azure CLI 2.50以上
-- Terraform 1.5以上（インフラ構築用）
-- kubectl（AKS使用時）
-
-#### 1. Azureリソースの作成
-
-**Service Busの作成:**
-
+1. **Azure Service Bus の作成**
 ```bash
-# リソースグループ作成
-az group create --name skishop-prod-rg --location japaneast
+# Resource Group作成
+az group create --name skishop-prod --location japaneast
 
 # Service Bus Namespace作成
 az servicebus namespace create \
-  --resource-group skishop-prod-rg \
+  --resource-group skishop-prod \
   --name skishop-servicebus \
   --location japaneast \
   --sku Standard
 
-# キュー作成
-az servicebus queue create \
-  --resource-group skishop-prod-rg \
+# Topics作成
+az servicebus topic create \
+  --resource-group skishop-prod \
   --namespace-name skishop-servicebus \
-  --name auth-user-events \
-  --max-size 1024
+  --name user-events
 
-# 接続文字列取得
-az servicebus namespace authorization-rule keys list \
-  --resource-group skishop-prod-rg \
+# Subscriptions作成
+az servicebus topic subscription create \
+  --resource-group skishop-prod \
   --namespace-name skishop-servicebus \
-  --name RootManageSharedAccessKey \
-  --query primaryConnectionString --output tsv
+  --topic-name user-events \
+  --name user-management-subscription
 ```
 
-**Event Gridの作成:**
-
+2. **Azure Redis Cache の作成**
 ```bash
-# Event Grid Topic作成
-az eventgrid topic create \
-  --resource-group skishop-prod-rg \
-  --name skishop-events \
-  --location japaneast
-
-# Topic Endpoint取得
-az eventgrid topic show \
-  --resource-group skishop-prod-rg \
-  --name skishop-events \
-  --query endpoint --output tsv
-
-# Access Key取得
-az eventgrid topic key list \
-  --resource-group skishop-prod-rg \
-  --name skishop-events \
-  --query key1 --output tsv
+az redis create \
+  --resource-group skishop-prod \
+  --name skishop-redis \
+  --location japaneast \
+  --sku Standard \
+  --vm-size c1
 ```
 
-**Azure Database for PostgreSQLの作成:**
-
+3. **Azure Database for PostgreSQL の作成**
 ```bash
-# PostgreSQL Serverの作成
 az postgres flexible-server create \
-  --resource-group skishop-prod-rg \
+  --resource-group skishop-prod \
   --name skishop-postgres \
   --location japaneast \
   --admin-user skishop \
-  --admin-password 'SecurePassword123!' \
-  --sku-name Standard_B1ms \
+  --admin-password "SecurePassword123!" \
+  --sku-name Standard_B2s \
   --tier Burstable \
-  --storage-size 32
-
-# データベース作成
-az postgres flexible-server db create \
-  --resource-group skishop-prod-rg \
-  --server-name skishop-postgres \
-  --database-name skishop
+  --version 15
 ```
 
-#### 2. Kubernetesクラスターの準備（AKS使用時）
+#### 環境変数の設定（本番環境）
 
 ```bash
-# AKSクラスター作成
-az aks create \
-  --resource-group skishop-prod-rg \
-  --name skishop-aks \
-  --node-count 3 \
-  --node-vm-size Standard_D2s_v3 \
-  --enable-addons monitoring \
-  --generate-ssh-keys
+# .env.production ファイルを作成
+cat > .env.production << 'EOF'
+# Production Environment
+SPRING_PROFILES_ACTIVE=production
+SKISHOP_EVENT_PROPAGATION_ENABLED=true
+SKISHOP_EVENT_BROKER_TYPE=azure-servicebus
+SKISHOP_EVENT_REDIS_KEY_PREFIX=skishop-prod
+SKISHOP_DEBUG_MODE=false
+SKISHOP_ENVIRONMENT=production
 
-# kubectl認証設定
-az aks get-credentials \
-  --resource-group skishop-prod-rg \
-  --name skishop-aks
+# Azure Service Bus
+AZURE_SERVICEBUS_CONNECTION_STRING=Endpoint=sb://skishop-servicebus.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
+
+# Database
+DATABASE_URL=jdbc:postgresql://skishop-postgres.postgres.database.azure.com:5432/postgres
+DATABASE_USERNAME=skishop
+DATABASE_PASSWORD=SecurePassword123!
+
+# Redis
+REDIS_HOST=skishop-redis.redis.cache.windows.net
+REDIS_PORT=6380
+REDIS_PASSWORD=...
+
+# Security
+JWT_SECRET=production-secret-key-512-bits-long
+AZURE_CLIENT_ID=...
+AZURE_CLIENT_SECRET=...
+AZURE_TENANT_ID=...
+
+# Monitoring
+AZURE_APP_INSIGHTS_KEY=...
+EOF
 ```
 
-#### 3. シークレット管理の設定
+## 完全な設定プロパティ一覧
 
-**Azure Key Vaultの作成:**
+### 共通プロパティ（両サービス）
 
-```bash
-# Key Vault作成
-az keyvault create \
-  --resource-group skishop-prod-rg \
-  --name skishop-keyvault \
-  --location japaneast
-
-# シークレット保存
-az keyvault secret set \
-  --vault-name skishop-keyvault \
-  --name servicebus-connection-string \
-  --value "Endpoint=sb://..."
-
-az keyvault secret set \
-  --vault-name skishop-keyvault \
-  --name eventgrid-topic-key \
-  --value "..."
-```
-
-#### 4. モニタリングの設定
-
-**Application Insightsの作成:**
-
-```bash
-# Application Insights作成
-az monitor app-insights component create \
-  --app skishop-insights \
-  --location japaneast \
-  --resource-group skishop-prod-rg \
-  --application-type web
-
-# Instrumentation Key取得
-az monitor app-insights component show \
-  --app skishop-insights \
-  --resource-group skishop-prod-rg \
-  --query instrumentationKey --output tsv
-```
-
-## 設定プロパティ一覧
-
-### プロパティ命名規則
-
-すべての設定プロパティは以下の命名規則に従います：
-
-- **プレフィックス**: `skishop.runtime.`
-- **形式**: kebab-case（ハイフン区切り）
-- **環境変数**: SCREAMING_SNAKE_CASE（アンダースコア区切り、大文字）
-
-### ローカル環境設定（application-local.yml）
-
+#### Skishop Runtime Properties
 ```yaml
-# ===== SKI SHOP ランタイム設定 =====
 skishop:
   runtime:
-    # ===== イベント伝播機能の制御 =====
-    event-propagation-enabled: true           # イベント機能の有効/無効
-    user-registration-event-enabled: true     # ユーザー登録イベント発行
-    user-deletion-event-enabled: true         # ユーザー削除イベント発行
-    fallback-to-sync-processing: true         # 同期処理へのフォールバック
-    debug-mode: true                          # デバッグログ出力
-    environment: "local"                      # 実行環境識別
-    rollout-percentage: 100                   # 機能適用割合
-    
-    # ===== メッセージング設定 =====
-    messaging:
-      provider: "redis-streams"               # ローカル環境はRedis Streams
-      retry-enabled: true                     # リトライ機能有効
-      dead-letter-queue-enabled: true         # デッドレターキュー有効
-      batch-processing-enabled: true          # バッチ処理有効
-      
-    # ===== パフォーマンス設定 =====
-    performance:
-      async-processing-enabled: true          # 非同期処理有効
-      thread-pool-size: 10                    # スレッドプール サイズ
-      queue-capacity: 1000                    # キューキャパシティ
-      
-    # ===== セキュリティ設定 =====
-    security:
-      encryption-enabled: false               # ローカルでは暗号化無効
-      audit-logging-enabled: true             # 監査ログ有効
-      
-    # ===== 監視設定 =====
-    monitoring:
-      metrics-enabled: true                   # メトリクス収集有効
-      tracing-enabled: true                   # 分散トレーシング有効
-      health-check-enabled: true              # ヘルスチェック有効
+    # Event propagation configuration
+    event-propagation-enabled: ${SKISHOP_EVENT_PROPAGATION_ENABLED:false}
+    event-broker-type: ${SKISHOP_EVENT_BROKER_TYPE:redis}  # redis, azure-servicebus, kafka
+    event-max-retries: ${SKISHOP_EVENT_MAX_RETRIES:3}
+    event-timeout-ms: ${SKISHOP_EVENT_TIMEOUT_MS:30000}
+    event-redis-key-prefix: ${SKISHOP_EVENT_REDIS_KEY_PREFIX:skishop}
+    event-concurrency: ${SKISHOP_EVENT_CONCURRENCY:4}
+    event-persistence-enabled: ${SKISHOP_EVENT_PERSISTENCE_ENABLED:true}
+    processed-event-retention-days: ${SKISHOP_PROCESSED_EVENT_RETENTION_DAYS:30}
+    debug-mode: ${SKISHOP_DEBUG_MODE:false}
+    environment: ${SKISHOP_ENVIRONMENT:local}  # local, development, production
+```
 
-# ===== Spring Framework設定 =====
+#### Database Properties
+```yaml
 spring:
-  profiles:
-    active: local
-  
-  # データソース設定
   datasource:
-    url: jdbc:postgresql://localhost:5432/skishop
-    username: skishop
-    password: skishop-password
-    driver-class-name: org.postgresql.Driver
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/skishop_auth}
+    username: ${DATABASE_USERNAME:skishop_user}
+    password: ${DATABASE_PASSWORD:password}
     hikari:
-      maximum-pool-size: 10                   # 最大プールサイズ
-      minimum-idle: 2                         # 最小アイドル接続数
-      connection-timeout: 30000               # 接続タイムアウト（30秒）
-      idle-timeout: 600000                    # アイドルタイムアウト（10分）
-      max-lifetime: 1800000                   # 最大生存時間（30分）
-      leak-detection-threshold: 60000         # リーク検出しきい値（60秒）
-  
-  # JPA設定
-  jpa:
-    hibernate:
-      ddl-auto: validate                      # スキーマ検証のみ
-    show-sql: true                            # SQL出力（デバッグ用）
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        use_sql_comments: true
-  
-  # Redis設定
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+```
+
+#### Redis Properties
+```yaml
+spring:
   data:
     redis:
-      host: localhost
-      port: 6379
-      password: skishop-redis-password
-      timeout: 3000ms
-      database: 0
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000ms}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
       lettuce:
         pool:
-          max-active: 8                       # 最大アクティブ接続数
-          max-idle: 4                         # 最大アイドル接続数
-          min-idle: 1                         # 最小アイドル接続数
-          max-wait: 5000ms                    # 接続取得待機時間
-          time-between-eviction-runs: 30s     # 不要接続の削除間隔
-        timeout: 2000ms                       # コマンドタイムアウト
-        shutdown-timeout: 1000ms              # シャットダウンタイムアウト
-  
-  # キャッシュ設定
-  cache:
-    type: redis
-    redis:
-      time-to-live: 300000                    # 5分
-
-# ===== Redis Streams設定 =====
-redis:
-  streams:
-    auth-events:
-      stream-name: "skishop-auth-user-events" # 統一されたストリーム名
-      consumer-group: "user-management-service" # コンシューマーグループ
-      consumer-name: "${spring.application.name}-${random.uuid}" # ユニークなコンシューマー名
-      batch-size: 10                          # バッチサイズ
-      poll-timeout: 1000ms                    # ポーリングタイムアウト
-      block-timeout: 5000ms                   # ブロックタイムアウト
-      retry-count: 3                          # リトライ回数
-      error-handler: "dead-letter-queue"      # エラーハンドラー
-      auto-ack: false                         # 手動ACK
-      
-    # ===== Dead Letter Queue設定 =====
-    dead-letter:
-      stream-name: "skishop-auth-user-events-dlq" # DLQストリーム名
-      max-len: 10000                          # DLQ最大長
-      retention-period: 7d                    # 保持期間
-      
-    # ===== ストリーム管理設定 =====
-    management:
-      auto-create: true                       # ストリーム自動作成
-      max-len: 100000                         # ストリーム最大長
-      maxlen-policy: "approximate"            # 長さ制限ポリシー
-
-# ===== Saga設定 =====
-saga:
-  # ===== 基本設定 =====
-  enabled: true                               # Saga機能有効
-  persistence-enabled: true                   # Saga状態永続化
-  
-  # ===== リトライ設定 =====
-  retry:
-    max-attempts: 3                           # 最大リトライ回数
-    initial-delay: 1000                       # 初期遅延（ミリ秒）
-    multiplier: 2.0                           # 遅延倍率
-    max-delay: 10000                          # 最大遅延（ミリ秒）
-    jitter: true                              # ジッター有効
-    
-  # ===== タイムアウト設定 =====
-  timeout: 30000                              # Sagaタイムアウト（30秒）
-  step-timeout: 10000                         # ステップタイムアウト（10秒）
-  
-  # ===== 管理設定 =====
-  cleanup-interval: 300000                    # クリーンアップ間隔（5分）
-  max-concurrent-sagas: 100                   # 最大同時実行Saga数
-  persistence-batch-size: 50                  # 永続化バッチサイズ
-  
-  # ===== 補償処理設定 =====
-  compensation:
-    enabled: true                             # 補償処理有効
-    timeout: 20000                            # 補償処理タイムアウト（20秒）
-    max-attempts: 5                           # 補償処理最大試行回数
-
-# ===== タイムアウト設定 =====
-timeout:
-  http:
-    connect: 5s                               # HTTP接続タイムアウト
-    read: 10s                                 # HTTP読み取りタイムアウト
-    write: 10s                                # HTTP書き込みタイムアウト
-  database:
-    query: 5s                                 # クエリタイムアウト
-    transaction: 30s                          # トランザクションタイムアウト
-    connection-validation: 3s                 # 接続検証タイムアウト
-  messaging:
-    publish: 10s                              # メッセージ発行タイムアウト
-    consume: 5s                               # メッセージ消費タイムアウト
-    saga-complete: 30s                        # Saga完了タイムアウト
-  circuit-breaker:
-    call: 5s                                  # 回路呼び出しタイムアウト
-    wait-duration-in-open-state: 60s          # オープン状態での待機時間
-
-# ===== Resilience4j設定 =====
-resilience4j:
-  circuitbreaker:
-    instances:
-      eventPublisher:
-        failure-rate-threshold: 50            # 失敗率しきい値（50%）
-        slow-call-rate-threshold: 50          # 遅い呼び出し率しきい値
-        slow-call-duration-threshold: 2s      # 遅い呼び出しの判定時間
-        wait-duration-in-open-state: 30s      # オープン状態での待機時間
-        sliding-window-size: 10               # スライディングウィンドウサイズ
-        minimum-number-of-calls: 5            # 最小呼び出し回数
-        permitted-number-of-calls-in-half-open-state: 3 # ハーフオープン状態での許可回数
-  
-  retry:
-    instances:
-      eventPublisher:
-        max-attempts: 3
-        wait-duration: 1s
-        exponential-backoff-multiplier: 2
-        retry-exceptions:
-          - java.net.ConnectException
-          - java.net.SocketTimeoutException
-
-# ===== アクチュエーター設定 =====
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus,env
-  endpoint:
-    health:
-      show-details: always
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    distribution:
-      percentiles-histogram:
-        "[http.server.requests]": true
-      sla:
-        "[http.server.requests]": 100ms,500ms,1s,2s
-
-# ===== ログ設定 =====
-logging:
-  level:
-    com.skishop: DEBUG                        # アプリケーションログレベル
-    org.springframework.data.redis: INFO     # Redis関連ログ
-    org.springframework.transaction: DEBUG   # トランザクションログ
-    org.springframework.web: INFO            # Webログ
-    org.hibernate.SQL: DEBUG                 # SQLログ
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE # SQLパラメータ
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId}] %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId}] %logger{36} - %msg%n"
-  file:
-    name: logs/skishop-local.log
-
-# ===== セキュリティ設定 =====
-security:
-  encryption:
-    enabled: false                            # ローカルでは暗号化無効
-    algorithm: "AES"
-  
-# ===== ビジネス設定 =====
-business:
-  user:
-    max-registration-attempts: 3              # 最大登録試行回数
-    registration-timeout: 300s                # 登録タイムアウト（5分）
-    cleanup-failed-registrations: true       # 失敗した登録のクリーンアップ
+          max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+          max-wait: ${REDIS_POOL_MAX_WAIT:-1ms}
+          max-idle: ${REDIS_POOL_MAX_IDLE:8}
+          min-idle: ${REDIS_POOL_MIN_IDLE:0}
 ```
 
-### 本番環境設定（application-production.yml）
+#### Resilience4j Properties
+```yaml
+resilience4j:
+  retry:
+    instances:
+      event-publishing:
+        max-attempts: ${RESILIENCE4J_RETRY_MAX_ATTEMPTS:3}
+        wait-duration: ${RESILIENCE4J_RETRY_WAIT_DURATION:1000ms}
+        exponential-backoff-multiplier: ${RESILIENCE4J_RETRY_BACKOFF_MULTIPLIER:2}
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - org.springframework.dao.DataAccessException
+      event-processing:
+        max-attempts: ${RESILIENCE4J_RETRY_MAX_ATTEMPTS:3}
+        wait-duration: ${RESILIENCE4J_RETRY_WAIT_DURATION:1000ms}
+        exponential-backoff-multiplier: ${RESILIENCE4J_RETRY_BACKOFF_MULTIPLIER:2}
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - org.springframework.dao.DataAccessException
+```
+
+### Authentication Service 固有プロパティ
 
 ```yaml
-# ===== SKI SHOP ランタイム設定 =====
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-for-jwt-that-is-long-enough}
+  issuer: ${JWT_ISSUER:SkiShop-Auth}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:3600}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800}
+
+# Azure Active Directory Configuration
+spring:
+  cloud:
+    azure:
+      active-directory:
+        enabled: ${AZURE_AD_ENABLED:false}
+        profile:
+          tenant-id: ${AZURE_TENANT_ID:}
+        credential:
+          client-id: ${AZURE_CLIENT_ID:}
+          client-secret: ${AZURE_CLIENT_SECRET:}
+        app-id-uri: ${AZURE_APP_ID_URI:}
+
+# OAuth2 Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID:}
+            client-secret: ${AZURE_CLIENT_SECRET:}
+            scope: openid,profile,email
+            redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:8080/login/oauth2/code/azure}
+```
+
+### User Management Service 固有プロパティ
+
+```yaml
+# User-specific configuration
+skishop:
+  user:
+    password:
+      min-length: ${USER_PASSWORD_MIN_LENGTH:8}
+      max-length: ${USER_PASSWORD_MAX_LENGTH:100}
+      require-uppercase: ${USER_PASSWORD_REQUIRE_UPPERCASE:true}
+      require-lowercase: ${USER_PASSWORD_REQUIRE_LOWERCASE:true}
+      require-digits: ${USER_PASSWORD_REQUIRE_DIGITS:true}
+      require-special-chars: ${USER_PASSWORD_REQUIRE_SPECIAL_CHARS:true}
+    
+    email-verification:
+      token-validity: ${EMAIL_VERIFICATION_TOKEN_VALIDITY:24}  # hours
+      base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+      
+    account-lock:
+      max-failed-attempts: ${ACCOUNT_LOCK_MAX_FAILED_ATTEMPTS:5}
+      lock-duration: ${ACCOUNT_LOCK_DURATION:30}  # minutes
+      
+    notification:
+      email:
+        enabled: ${EMAIL_NOTIFICATION_ENABLED:true}
+        from: ${EMAIL_FROM:noreply@skishop.com}
+        smtp:
+          host: ${SMTP_HOST:localhost}
+          port: ${SMTP_PORT:587}
+          username: ${SMTP_USERNAME:}
+          password: ${SMTP_PASSWORD:}
+          auth: ${SMTP_AUTH:true}
+          starttls: ${SMTP_STARTTLS:true}
+```
+
+### Azure Service Bus Properties (本番環境)
+
+```yaml
+# Azure Service Bus Configuration
+azure:
+  servicebus:
+    connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}
+    pricing-tier: ${AZURE_SERVICEBUS_PRICING_TIER:standard}
+  
+  # Application Insights
+  application-insights:
+    enabled: ${AZURE_APP_INSIGHTS_ENABLED:false}
+    instrumentation-key: ${AZURE_APP_INSIGHTS_KEY:}
+    
+  # Key Vault
+  keyvault:
+    enabled: ${AZURE_KEYVAULT_ENABLED:false}
+    uri: ${AZURE_KEYVAULT_URI:}
+```
+
+### 環境別設定ファイル
+
+#### ローカル環境 (application-local.yml)
+```yaml
+# Local Development Overrides
 skishop:
   runtime:
-    # ===== イベント伝播機能の制御 =====
     event-propagation-enabled: true
-    user-registration-event-enabled: true
-    user-deletion-event-enabled: true
-    fallback-to-sync-processing: false       # 本番環境では無効
-    debug-mode: false                         # 本番環境では無効
-    environment: "production"
-    rollout-percentage: 100
+    event-broker-type: redis
+    event-redis-key-prefix: skishop-local
+    debug-mode: true
+    environment: local
     
-    # ===== メッセージング設定 =====
-    messaging:
-      provider: "azure-servicebus"            # 本番環境はAzure Service Bus
-      retry-enabled: true
-      dead-letter-queue-enabled: true
-      batch-processing-enabled: true
-      priority-processing-enabled: true       # 優先度処理有効
-      
-    # ===== パフォーマンス設定 =====
-    performance:
-      async-processing-enabled: true
-      thread-pool-size: 20                    # 本番環境は大きめ
-      queue-capacity: 5000                    # 本番環境は大きめ
-      bulk-operations-enabled: true           # バルク操作有効
-      
-    # ===== セキュリティ設定 =====
-    security:
-      encryption-enabled: true                # 本番環境では暗号化有効
-      audit-logging-enabled: true
-      data-masking-enabled: true              # データマスキング有効
-      
-    # ===== 監視設定 =====
-    monitoring:
-      metrics-enabled: true
-      tracing-enabled: true
-      health-check-enabled: true
-      performance-profiling-enabled: true     # パフォーマンスプロファイリング有効
-      alert-thresholds:
-        error-rate: 5                         # エラー率閾値（%）
-        response-time: 2000                   # 応答時間閾値（ms）
-        queue-depth: 1000                     # キュー深度閾値
-
-# ===== Spring Framework設定 =====
-spring:
-  profiles:
-    active: production
-  
-  # データソース設定
-  datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST}:5432/${POSTGRES_DB}
-    username: ${POSTGRES_USERNAME}
-    password: ${POSTGRES_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 20                   # 本番環境では大きめ
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      leak-detection-threshold: 60000         # リーク検出しきい値（60秒）
-  
-  # JPA設定
-  jpa:
-    hibernate:
-      ddl-auto: validate                      # 本番環境では検証のみ
-    show-sql: false                           # SQLログ無効
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc:
-          batch_size: 20                      # バッチサイズ最適化
-        order_inserts: true
-        order_updates: true
-        format_sql: false
-
-# ===== Azure設定 =====
-azure:
-  # ===== Service Bus設定 =====
-  servicebus:
-    connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING}
-    namespace: ${AZURE_SERVICEBUS_NAMESPACE:skishop-servicebus}
-    
-    # ===== メッセージエンティティ設定 =====
-    entities:
-      user-events:
-        queue-name: "skishop-user-events"
-        topic-name: "skishop-user-events-topic"
-        subscription-name: "user-management-subscription"
-        session-enabled: false
-        partitioning-enabled: true            # パーティション有効
-        
-    # ===== 受信設定 =====
-    receiver:
-      auto-complete: true                     # 自動完了
-      prefetch-count: 10                      # プリフェッチ数
-      max-concurrent-calls: 5                 # 最大同時呼び出し数
-      max-auto-renew-duration: 300s           # 最大自動更新期間
-      receive-mode: "peek-lock"               # 受信モード
-      
-    # ===== 送信設定 =====
-    sender:
-      via-partition-key: true                 # パーティションキー使用
-      retry-options:
-        max-retries: 3
-        delay: 1s
-        max-delay: 30s
-        try-timeout: 10s
-        
-    # ===== デッドレター設定 =====
-    dead-letter:
-      enabled: true
-      max-delivery-count: 5                   # 最大配信回数
-      ttl: 7d                                 # Time To Live
-  # ===== Event Grid設定 =====
-  eventgrid:
-    topic-endpoint: ${AZURE_EVENTGRID_TOPIC_ENDPOINT}
-    topic-key: ${AZURE_EVENTGRID_TOPIC_KEY}
-    
-    # ===== 発行設定 =====
-    publisher:
-      batch-size: 100                         # バッチサイズ
-      max-wait-time: 5s                       # 最大待機時間
-      retry-policy:
-        max-attempts: 3
-        initial-delay: 2s
-        max-delay: 30s
-        exponential-backoff: true
-        
-    # ===== イベント設定 =====
-    events:
-      user-registration:
-        event-type: "skishop.user.registered"
-        subject-prefix: "/users/registration/"
-        schema-version: "1.0"
-        
-      user-deletion:
-        event-type: "skishop.user.deleted"
-        subject-prefix: "/users/deletion/"
-        schema-version: "1.0"
-  
-  # ===== Key Vault設定 =====
-  keyvault:
-    uri: ${AZURE_KEYVAULT_URI}
-    enabled: true
-    secret-refresh-interval: 300s             # シークレット更新間隔
-    retry-policy:
-      max-attempts: 3
-      initial-delay: 1s
-      max-delay: 10s
-  
-  # ===== Application Insights設定 =====
-  application-insights:
-    instrumentation-key: ${AZURE_APPINSIGHTS_INSTRUMENTATION_KEY}
-    enabled: true
-    
-    # ===== テレメトリ設定 =====
-    telemetry:
-      sampling-percentage: 100                # サンプリング率
-      flush-interval: 5s                      # フラッシュ間隔
-      max-batch-size: 512                     # 最大バッチサイズ
-      
-    # ===== カスタムメトリクス設定 =====
-    custom-metrics:
-      saga-duration: true                     # Saga実行時間
-      event-processing-time: true             # イベント処理時間
-      error-rate: true                        # エラー率
-      throughput: true                        # スループット
-
-# ===== Saga設定（本番環境用） =====
-saga:
-  # ===== 基本設定 =====
-  enabled: true
-  persistence-enabled: true
-  
-  # ===== リトライ設定 =====
-  retry:
-    max-attempts: 5                           # 本番環境では多めに
-    initial-delay: 2000
-    multiplier: 1.5
-    max-delay: 30000
-    jitter: true                              # ジッター有効でスパイク軽減
-    
-  # ===== タイムアウト設定 =====
-  timeout: 60000                              # 60秒
-  step-timeout: 20000                         # ステップタイムアウト（20秒）
-  
-  # ===== 管理設定 =====
-  cleanup-interval: 600000                    # 10分
-  max-concurrent-sagas: 500                   # 本番環境では大きめ
-  persistence-batch-size: 100                 # バッチサイズ最適化
-  
-  # ===== 補償処理設定 =====
-  compensation:
-    enabled: true
-    timeout: 40000                            # 補償処理タイムアウト（40秒）
-    max-attempts: 7                           # 補償処理最大試行回数
-    
-  # ===== パフォーマンス設定 =====
-  performance:
-    parallel-execution-enabled: true          # 並列実行有効
-    lazy-loading-enabled: true                # 遅延ロード有効
-    caching-enabled: true                     # キャッシュ有効
-  
-# ===== タイムアウト設定（本番環境用） =====
-timeout:
-  http:
-    connect: 10s                              # 本番環境では長め
-    read: 30s
-    write: 30s
-  database:
-    query: 10s
-    transaction: 60s
-    connection-validation: 5s
-  messaging:
-    publish: 30s
-    consume: 10s
-    saga-complete: 60s
-  circuit-breaker:
-    call: 10s
-    wait-duration-in-open-state: 120s
-
-# ===== Resilience4j設定（本番環境用） =====
-resilience4j:
-  circuitbreaker:
-    instances:
-      azureServiceBus:
-        failure-rate-threshold: 30            # より厳しい設定
-        slow-call-rate-threshold: 40
-        slow-call-duration-threshold: 5s
-        wait-duration-in-open-state: 60s
-        sliding-window-size: 20
-        minimum-number-of-calls: 10
-        permitted-number-of-calls-in-half-open-state: 5
-      
-      azureEventGrid:
-        failure-rate-threshold: 30
-        slow-call-rate-threshold: 40
-        slow-call-duration-threshold: 5s
-        wait-duration-in-open-state: 60s
-        sliding-window-size: 20
-        minimum-number-of-calls: 10
-  
-  retry:
-    instances:
-      azureServices:
-        max-attempts: 5
-        wait-duration: 2s
-        exponential-backoff-multiplier: 1.5
-        retry-exceptions:
-          - com.azure.core.exception.AzureException
-          - java.net.ConnectException
-
-# ===== アクチュエーター設定（本番環境用） =====
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus  # 本番では限定
-  endpoint:
-    health:
-      show-details: when-authorized            # 認証時のみ詳細表示
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-        step: 10s                              # メトリクス収集間隔
-      azure-monitor:
-        enabled: true                          # Azure Monitor連携
-        instrumentation-key: ${AZURE_APPINSIGHTS_INSTRUMENTATION_KEY}
-
-# ===== ログ設定（本番環境用） =====
 logging:
   level:
-    com.skishop: INFO                          # 本番環境では INFO レベル
-    org.springframework: WARN
-    org.hibernate: WARN
-    com.azure: WARN
+    '[com.skishop]': DEBUG
+    '[org.springframework.data.redis]': DEBUG
+    '[io.github.resilience4j]': DEBUG
+```
+
+#### 本番環境 (application-production.yml)
+```yaml
+# Production Overrides
+skishop:
+  runtime:
+    event-propagation-enabled: true
+    event-broker-type: azure-servicebus
+    event-redis-key-prefix: skishop-prod
+    debug-mode: false
+    environment: production
+    event-max-retries: 5
+    event-timeout-ms: 60000
+    event-concurrency: 8
+    processed-event-retention-days: 90
+
+logging:
+  level:
+    '[com.skishop]': INFO
+    '[io.github.resilience4j]': WARN
     root: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId}] %logger{36} - %msg%n"
-  appender:
-    azure:
-      enabled: true                            # Azure Log Analytics連携
-      workspace-id: ${AZURE_LOG_ANALYTICS_WORKSPACE_ID}
-      shared-key: ${AZURE_LOG_ANALYTICS_SHARED_KEY}
 
-# ===== セキュリティ設定（本番環境用） =====
-security:
-  encryption:
-    enabled: true                              # 本番環境では暗号化有効
-    algorithm: "AES/GCM/NoPadding"
-    key-source: "azure-keyvault"
-    password: ${ENCRYPTION_PASSWORD}
-  
-  oauth2:
-    resource-server:
-      jwt:
-        issuer-uri: ${JWT_ISSUER_URI}
-        jwk-set-uri: ${JWT_JWK_SET_URI}
-
-# ===== ビジネス設定（本番環境用） =====
-business:
-  user:
-    max-registration-attempts: 5              # 本番環境では多め
-    registration-timeout: 600s                # 10分
-    cleanup-failed-registrations: true
-    rate-limiting:
-      enabled: true
-      max-requests-per-minute: 100            # レート制限
+management:
+  endpoint:
+    health:
+      show-details: never
 ```
 
-### 環境変数一覧
+## デプロイメントチェックリスト
 
-#### ローカル環境
+### ローカル環境
 
-```bash
-# データベース接続
-export POSTGRES_HOST=localhost
-export POSTGRES_DB=skishop
-export POSTGRES_USERNAME=skishop
-export POSTGRES_PASSWORD=skishop-password
+- [ ] Docker & Docker Compose インストール済み
+- [ ] PostgreSQL, Redis コンテナが起動中
+- [ ] データベースとユーザーが作成済み
+- [ ] 環境変数 (.env.local) が設定済み
+- [ ] 両サービスが正常に起動
+- [ ] Health checkエンドポイントが応答
+- [ ] イベント発行/受信のテストが成功
 
-# Redis接続
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-export REDIS_PASSWORD=skishop-redis-password
+### 本番環境
 
-# アプリケーション設定
-export SPRING_PROFILES_ACTIVE=local
-export SKISHOP_RUNTIME_ENVIRONMENT=local
-```
+- [ ] Azure リソースグループ作成済み
+- [ ] Azure Service Bus 設定済み
+- [ ] Azure Redis Cache 設定済み
+- [ ] Azure Database for PostgreSQL 設定済み
+- [ ] Azure Key Vault 設定済み（オプション）
+- [ ] Azure Application Insights 設定済み（オプション）
+- [ ] 本番環境変数 (.env.production) 設定済み
+- [ ] SSL/TLS 証明書設定済み
+- [ ] ネットワークセキュリティグループ設定済み
+- [ ] ロードバランサー設定済み
+- [ ] バックアップとディザスタリカバリ設定済み
+- [ ] 監視とアラート設定済み
 
-#### 本番環境
+## 実装完了状況
 
-```bash
-# Azure Service Bus
-export AZURE_SERVICEBUS_CONNECTION_STRING="Endpoint=sb://..."
-export AZURE_SERVICEBUS_NAMESPACE="skishop-servicebus"
+### ✅ 完了済み
 
-# Azure Event Grid
-export AZURE_EVENTGRID_TOPIC_ENDPOINT="https://..."
-export AZURE_EVENTGRID_TOPIC_KEY="..."
+1. **Event Publishing Service**: 認証サービスでのイベント発行ロジック実装
+2. **Event Consumer Service**: ユーザー管理サービスでのイベント受信ロジック実装
+3. **User Registration Service**: ユーザー登録エンドポイントとイベント連携
+4. **Configuration Classes**: 統一された設定プロパティ管理
+5. **Entity Classes**: Saga状態と処理済みイベントのJPAエンティティ
+6. **Repository Classes**: データアクセス層の実装
+7. **Redis Configuration**: イベント発行・受信のためのRedis設定
+8. **Environment Configuration**: ローカル・本番環境設定ファイル
+9. **依存関係**: pom.xmlへの必要なライブラリ追加
+10. **ドキュメント**: 環境構築手順と設定プロパティ一覧
 
-# Azure Key Vault
-export AZURE_KEYVAULT_URI="https://skishop-keyvault.vault.azure.net/"
+### 🔄 次のステップ（必要に応じて）
 
-# Azure Application Insights
-export AZURE_APPINSIGHTS_INSTRUMENTATION_KEY="..."
-
-# Azure Log Analytics
-export AZURE_LOG_ANALYTICS_WORKSPACE_ID="..."
-export AZURE_LOG_ANALYTICS_SHARED_KEY="..."
-
-# データベース接続
-export POSTGRES_HOST="skishop-postgres.postgres.database.azure.com"
-export POSTGRES_DB="skishop"
-export POSTGRES_USERNAME="skishop"
-export POSTGRES_PASSWORD="SecurePassword123!"
-
-# セキュリティ
-export ENCRYPTION_PASSWORD="..."
-export JWT_ISSUER_URI="https://..."
-export JWT_JWK_SET_URI="https://..."
-
-# アプリケーション設定
-export SPRING_PROFILES_ACTIVE=production
-export SKISHOP_RUNTIME_ENVIRONMENT=production
-```
+1. **統合テスト**: エンドツーエンドの動作確認
+2. **Docker Compose**: ローカル開発環境のコンテナ化
+3. **Azure Service Bus**: 本番環境向けの実装
+4. **監視・メトリクス**: Prometheus/Grafanaとの統合
+5. **エラーハンドリング**: 詳細なエラー処理とアラート
+6. **性能最適化**: スループットとレイテンシの改善

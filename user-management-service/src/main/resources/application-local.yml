@@ -85,6 +85,8 @@ logging:
     '[org.springframework.web]': INFO
     '[org.hibernate.SQL]': DEBUG
     '[org.hibernate.type.descriptor.sql.BasicBinder]': TRACE
+    '[org.springframework.data.redis]': DEBUG
+    '[io.github.resilience4j]': DEBUG
     root: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
@@ -119,6 +121,19 @@ skishop:
     notification:
       email:
         enabled: false
+  
+  # Event Propagation Configuration for Local Development
+  runtime:
+    event-propagation-enabled: true
+    event-broker-type: redis
+    event-max-retries: 3
+    event-timeout-ms: 30000
+    event-redis-key-prefix: skishop-local
+    event-concurrency: 2
+    event-persistence-enabled: true
+    processed-event-retention-days: 7
+    debug-mode: true
+    environment: local
 
 # API文書化設定
 springdoc:
@@ -129,3 +144,5 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
   packages-to-scan: com.skishop.user.controller
+
+

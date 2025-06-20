@@ -108,6 +108,8 @@ logging:
     '[com.azure.spring]': WARN
     '[org.hibernate.SQL]': DEBUG
     '[org.hibernate.type.descriptor.sql.BasicBinder]': TRACE
+    '[org.springframework.data.redis]': DEBUG
+    '[io.github.resilience4j]': DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
 

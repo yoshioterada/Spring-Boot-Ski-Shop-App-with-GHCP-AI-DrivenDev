@@ -1,0 +1,90 @@
+# Production Environment Configuration
+# This file contains settings specific to production environment
+
+# Skishop Event Propagation Configuration for Production
+skishop:
+  runtime:
+    event-propagation-enabled: true
+    event-broker-type: azure-servicebus
+    event-max-retries: 5
+    event-timeout-ms: 60000
+    event-redis-key-prefix: skishop-prod
+    event-concurrency: 8
+    event-persistence-enabled: true
+    processed-event-retention-days: 90
+    debug-mode: false
+    environment: production
+
+# Redis Configuration for Production
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-wait: -1ms
+          max-idle: 10
+          min-idle: 5
+
+# Database Configuration for Production
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+# Security Configuration for Production
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID}
+            client-secret: ${AZURE_CLIENT_SECRET}
+            
+# Logging Configuration for Production
+logging:
+  level:
+    com.skishop.auth: INFO
+    io.github.resilience4j: WARN
+    org.springframework.data.redis: WARN
+    root: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
+# Resilience4j Configuration for Production
+resilience4j:
+  retry:
+    instances:
+      event-publishing:
+        max-attempts: 5
+        wait-duration: 2000ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.lang.RuntimeException
+          - org.springframework.dao.DataAccessException
+
+# Health and Monitoring for Production
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    export:
+      prometheus:
+        enabled: true
