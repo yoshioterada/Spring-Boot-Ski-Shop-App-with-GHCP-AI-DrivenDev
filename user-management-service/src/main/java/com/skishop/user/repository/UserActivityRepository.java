@@ -70,4 +70,35 @@ public interface UserActivityRepository extends JpaRepository<UserActivity, UUID
      */
     @Query("SELECT a.activityType, COUNT(a) FROM UserActivity a WHERE a.createdAt >= :since GROUP BY a.activityType")
     List<Object[]> countActivitiesByTypeSince(@Param("since") LocalDateTime since);
+
+    /**
+     * ユーザーエンティティでアクティビティを検索
+     */
+    List<UserActivity> findByUser(com.skishop.user.entity.User user);
+
+    /**
+     * ユーザーエンティティでアクティビティをページング検索
+     */
+    Page<UserActivity> findByUser(com.skishop.user.entity.User user, Pageable pageable);
+
+    /**
+     * ユーザーエンティティでアクティビティを日時順で検索
+     */
+    List<UserActivity> findByUserOrderByTimestampDesc(com.skishop.user.entity.User user);
+
+    /**
+     * ユーザーエンティティによるアクティビティ削除
+     */
+    void deleteByUser(com.skishop.user.entity.User user);
+
+    /**
+     * ユーザーIDによるアクティビティ削除
+     */
+    int deleteByUserId(UUID userId);
+
+    /**
+     * アクティビティタイプ（文字列）で検索
+     */
+    @Query("SELECT ua FROM UserActivity ua WHERE ua.activityType = :activityType")
+    List<UserActivity> findByActivityTypeString(@Param("activityType") String activityType);
 }

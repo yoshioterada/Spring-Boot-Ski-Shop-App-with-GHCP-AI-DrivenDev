@@ -28,11 +28,17 @@ public class ProcessedEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @Column(name = "event_id", unique = true, nullable = false)
+    private String eventId;
+    
     @Column(name = "saga_id", unique = true, nullable = false)
     private String sagaId;
     
     @Column(name = "event_type", nullable = false)
     private String eventType;
+    
+    @Column(name = "event_data", columnDefinition = "TEXT")
+    private String eventData;
     
     @Column(name = "user_id")
     private UUID userId;
@@ -45,4 +51,10 @@ public class ProcessedEvent {
     
     @Column(name = "processing_time_ms")
     private Long processingTimeMs; // 処理時間
+    
+    @Column(name = "is_success", nullable = false)
+    private Boolean isSuccess; // 処理成功フラグ
+    
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage; // エラーメッセージ（失敗時のみ）
 }

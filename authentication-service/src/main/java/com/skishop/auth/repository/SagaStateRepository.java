@@ -80,4 +80,64 @@ public interface SagaStateRepository extends JpaRepository<SagaState, Long> {
      * 完了したSagaで終了時間があるものを検索
      */
     List<SagaState> findBySagaStatusAndEndTimeIsNotNull(SagaStatus sagaStatus);
+    
+    // 監視機能用のメソッド
+    
+    /**
+     * ステータス別カウント
+     */
+    long countByStatus(String status);
+    
+    /**
+     * Sagaステータス別カウント
+     */
+    long countBySagaStatus(SagaStatus sagaStatus);
+    
+    /**
+     * Sagaタイプと開始時間で検索
+     */
+    List<SagaState> findBySagaTypeAndStartTimeAfter(String sagaType, Instant startTime);
+    
+    /**
+     * Sagaタイプで検索（ページング対応）
+     */
+    org.springframework.data.domain.Page<SagaState> findBySagaType(String sagaType, org.springframework.data.domain.Pageable pageable);
+    
+    /**
+     * Sagaステータスで検索（ページング対応）
+     */
+    org.springframework.data.domain.Page<SagaState> findBySagaStatus(SagaStatus sagaStatus, org.springframework.data.domain.Pageable pageable);
+    
+    /**
+     * SagaタイプとSagaステータスで検索（ページング対応）
+     */
+    org.springframework.data.domain.Page<SagaState> findBySagaTypeAndSagaStatus(String sagaType, SagaStatus sagaStatus, org.springframework.data.domain.Pageable pageable);
+    
+    /**
+     * 指定された複数のSagaステータスと最終ハートビート時間で検索
+     */
+    List<SagaState> findBySagaStatusInAndLastHeartbeatBefore(List<SagaStatus> sagaStatuses, Instant lastHeartbeat);
+    
+    /**
+     * 作成時間以降と特定のSagaステータスでカウント
+     */
+    long countByCreatedAtAfterAndSagaStatus(java.time.LocalDateTime createdAt, SagaStatus sagaStatus);
+    
+    /**
+     * 指定された時刻以降に完了したSagaの数を取得
+     */
+    @Query("SELECT COUNT(s) FROM SagaState s WHERE s.sagaStatus = 'SAGA_COMPLETED' AND s.endTime >= :since")
+    long countCompletedAfter(@Param("since") Instant since);
+    
+    /**
+     * 指定された時刻以降に失敗したSagaの数を取得
+     */
+    @Query("SELECT COUNT(s) FROM SagaState s WHERE s.sagaStatus = 'SAGA_FAILED' AND s.endTime >= :since")
+    long countFailedAfter(@Param("since") Instant since);
+    
+    /**
+     * 平均実行時間を取得（ミリ秒）
+     */
+    @Query("SELECT AVG(EXTRACT(EPOCH FROM (s.endTime - s.startTime)) * 1000) FROM SagaState s WHERE s.endTime IS NOT NULL AND s.startTime IS NOT NULL")
+    Double getAverageExecutionDuration();
 }

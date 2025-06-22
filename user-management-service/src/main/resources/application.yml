@@ -88,7 +88,58 @@ spring:
             delay: PT1S
             max-delay: PT30S
   
-  # キャッシュ設定
+  # Kafka設定
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: user-management-service
+      auto-offset-reset: earliest
+      max-poll-records: 10
+      session-timeout-ms: 30000
+      enable-auto-commit: false
+    producer:
+      retries: 3
+      acks: all
+      compression-type: snappy
+    topics:
+      user-registration: user-registration
+      user-deletion: user-deletion
+      user-management-status: user-management-status
+      fallback: fallback-events
+
+  # タスクスケジューリング設定
+  task:
+    scheduling:
+      pool:
+        size: 5
+
+# Saga設定
+saga:
+  timeout:
+    registration: 30
+    deletion: 60
+  max-retry: 3
+
+# セキュリティ設定
+security:
+  encryption:
+    password: ${ENCRYPTION_PASSWORD:default-password}
+  log-masking:
+    enabled: true
+    sensitive-fields:
+      - password
+      - secret
+      - key
+      - token
+      - credential
+  configuration-masking:
+    enabled: true
+    sensitive-keys:
+      - password
+      - secret
+      - connection-string
+
+# キャッシュ設定
   cache:
     type: redis
     redis:

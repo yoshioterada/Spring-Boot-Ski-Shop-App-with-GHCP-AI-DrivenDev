@@ -4,6 +4,7 @@ import com.skishop.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,7 +19,7 @@ import java.util.UUID;
  * ユーザーデータへのアクセスを提供
  */
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
 
     /**
      * メールアドレスでユーザーを検索
@@ -122,4 +123,30 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      */
     @Query("SELECT u FROM User u WHERE u.id IN :ids")
     List<User> findByIds(@Param("ids") List<UUID> ids);
+
+    /**
+     * ユーザーIDでユーザーを検索（不要 - IDはUUIDのため）
+     */
+    // Optional<User> findByUserId(String userId);
+
+    /**
+     * ユーザーIDの存在確認（不要 - IDはUUIDのため）
+     */
+    // boolean existsByUserId(String userId);
+
+    /**
+     * ステータス別ユーザー数を取得
+     */
+    long countByStatus(User.UserStatus status);
+
+    /**
+     * 指定日以降に作成されたユーザー数を取得
+     */
+    long countByCreatedAtAfter(LocalDateTime date);
+
+    /**
+     * 複数検索条件での検索
+     */
+    Page<User> findByEmailContainingIgnoreCaseOrFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(
+        String email, String firstName, String lastName, Pageable pageable);
 }

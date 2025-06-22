@@ -1,5 +1,6 @@
 package com.skishop.user.repository;
 
+import com.skishop.user.entity.User;
 import com.skishop.user.entity.UserPreference;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -17,12 +18,12 @@ public interface UserPreferenceRepository extends JpaRepository<UserPreference, 
     /**
      * ユーザーIDで設定を検索
      */
-    List<UserPreference> findByUserId(UUID userId);
+    List<UserPreference> findByUser_Id(UUID userId);
 
     /**
      * ユーザーIDと設定キーで検索
      */
-    Optional<UserPreference> findByUserIdAndPrefKey(UUID userId, String prefKey);
+    Optional<UserPreference> findByUser_IdAndPrefKey(UUID userId, String prefKey);
 
     /**
      * 設定キーで検索
@@ -32,15 +33,35 @@ public interface UserPreferenceRepository extends JpaRepository<UserPreference, 
     /**
      * ユーザーIDと設定キーで存在確認
      */
-    boolean existsByUserIdAndPrefKey(UUID userId, String prefKey);
+    boolean existsByUser_IdAndPrefKey(UUID userId, String prefKey);
 
     /**
      * ユーザーIDと設定キーで削除
      */
-    void deleteByUserIdAndPrefKey(UUID userId, String prefKey);
+    void deleteByUser_IdAndPrefKey(UUID userId, String prefKey);
 
     /**
      * ユーザーIDで全設定削除
      */
-    void deleteByUserId(UUID userId);
+    void deleteByUser_Id(UUID userId);
+
+    /**
+     * ユーザーエンティティで設定を検索
+     */
+    Optional<UserPreference> findByUser(User user);
+
+    /**
+     * ユーザーエンティティによる設定削除
+     */
+    void deleteByUser(User user);
+
+    /**
+     * ユーザーエンティティの存在確認
+     */
+    boolean existsByUser(User user);
+
+    /**
+     * ユーザーIDによる設定削除
+     */
+    int deleteByUserId(UUID userId);
 }

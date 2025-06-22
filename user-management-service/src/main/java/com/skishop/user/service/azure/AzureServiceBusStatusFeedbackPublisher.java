@@ -4,7 +4,7 @@ import com.azure.messaging.servicebus.ServiceBusMessage;
 import com.azure.messaging.servicebus.ServiceBusSenderClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.skishop.user.dto.EventDto;
+import com.skishop.user.dto.event.EventDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +46,7 @@ public class AzureServiceBusStatusFeedbackPublisher {
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
-    public void publishStatusFeedback(EventDto statusEvent) {
+    public void publishStatusFeedback(EventDto<?> statusEvent) {
         try {
             log.debug("Publishing status feedback to Azure Service Bus: eventId={}, eventType={}, sagaId={}", 
                 statusEvent.getEventId(), statusEvent.getEventType(), statusEvent.getSagaId());

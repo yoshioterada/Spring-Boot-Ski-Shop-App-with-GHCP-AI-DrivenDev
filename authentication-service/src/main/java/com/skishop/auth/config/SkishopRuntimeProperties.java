@@ -61,6 +61,16 @@ public class SkishopRuntimeProperties {
      */
     private String eventRedisKeyPrefix = "skishop";
     
+    /**
+     * イベント最大リトライ回数
+     */
+    private int eventMaxRetries = 3;
+    
+    /**
+     * イベント並行実行数
+     */
+    private int eventConcurrency = 10;
+    
 
     
     /**
@@ -110,5 +120,13 @@ public class SkishopRuntimeProperties {
     
     public String getEnvironment() {
         return environment.name().toLowerCase();
+    }
+    
+    public int getEventMaxRetries() {
+        return eventMaxRetries;
+    }
+    
+    public int getEventConcurrency() {
+        return eventConcurrency;
     }
 }

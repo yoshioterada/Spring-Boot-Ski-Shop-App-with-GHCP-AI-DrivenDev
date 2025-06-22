@@ -1,5 +1,6 @@
 package com.skishop.auth.service.compensation;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skishop.auth.entity.SagaState;
 import com.skishop.auth.enums.SagaStatus;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -85,11 +87,11 @@ public class CompensationService {
      * 補償コンテキストを構築
      */
     private CompensationContext buildCompensationContext(SagaState saga, String failureReason) {
-        Map<String, Object> sagaData = Map.of();
+        Map<String, Object> sagaData = new HashMap<>();
         
         try {
             if (saga.getData() != null) {
-                sagaData = objectMapper.readValue(saga.getData(), Map.class);
+                sagaData = objectMapper.readValue(saga.getData(), new TypeReference<Map<String, Object>>() {});
             }
         } catch (Exception e) {
             log.warn("Failed to parse saga data for compensation: {}", e.getMessage());

@@ -3,8 +3,12 @@ package com.skishop.user.config;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.ServiceBusClientBuilder;
 import com.azure.messaging.servicebus.ServiceBusProcessorClient;
+import com.azure.messaging.servicebus.ServiceBusReceivedMessage;
 import com.azure.messaging.servicebus.ServiceBusSenderClient;
+import com.skishop.user.service.azure.AzureServiceBusEventReceiver;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -30,24 +34,27 @@ public class AzureServiceBusConfig {
     @Value("${spring.cloud.azure.servicebus.namespace}")
     private String serviceBusNamespace;
 
-    @Value("${skishop.runtime.azure-servicebus.topic-name}")
-    private String topicName;
-
-    @Value("${skishop.runtime.azure-servicebus.subscription-name}")
-    private String subscriptionName;
-
-    @Value("${skishop.runtime.azure-servicebus.status-feedback-topic}")
-    private String statusFeedbackTopic;
+    private final SkishopRuntimeProperties runtimeProperties;
 
     @Value("${spring.cloud.azure.servicebus.connection-string:}")
     private String connectionString;
+    
+    public AzureServiceBusConfig(SkishopRuntimeProperties runtimeProperties) {
+        this.runtimeProperties = runtimeProperties;
+    }
 
     /**
      * イベント受信用 ServiceBus Processor Client
      * 認証サービスからのイベントを受信して処理
      */
     @Bean
-    public ServiceBusProcessorClient eventProcessorClient() {
+    public ServiceBusProcessorClient eventProcessorClient(
+            @Autowired ObjectProvider<AzureServiceBusEventReceiver> eventReceiverProvider) {
+        String topicName = runtimeProperties.getAzureServicebus().getTopicName();
+        String subscriptionName = runtimeProperties.getAzureServicebus().getSubscriptionName();
+        int prefetchCount = runtimeProperties.getAzureServicebus().getPrefetchCount();
+        int maxConcurrentCalls = runtimeProperties.getAzureServicebus().getMaxConcurrentCalls();
+        
         log.info("Creating Azure Service Bus Processor Client for subscription: {}", subscriptionName);
         
         ServiceBusClientBuilder clientBuilder = new ServiceBusClientBuilder();
@@ -63,17 +70,34 @@ public class AzureServiceBusConfig {
             log.debug("Using Managed Identity for Service Bus authentication");
         }
         
+        // 最初はプロセッサをコールバックなしで作成
+        // コールバックはAzureServiceBusEventReceiverでインジェクション後に設定される
         return clientBuilder
             .processor()
             .topicName(topicName)
             .subscriptionName(subscriptionName)
-            .processMessage(message -> {
-                log.debug("Received event message: {}", message.getBody().toString());
-                // メッセージ処理は EventConsumerService に委譲される
+            .disableAutoComplete()  // 明示的な完了またはエラー処理を可能にする
+            .maxConcurrentCalls(maxConcurrentCalls)  // 並列処理の制御
+            .prefetchCount(prefetchCount)      // パフォーマンス最適化
+            .processMessage(context -> {
+                // AzureServiceBusEventReceiverがインジェクションされたら、そのメソッドを使用
+                AzureServiceBusEventReceiver receiver = eventReceiverProvider.getIfAvailable();
+                if (receiver != null) {
+                    receiver.processMessage(context);
+                } else {
+                    log.warn("AzureServiceBusEventReceiver not available, message will not be processed");
+                    context.abandon();
+                }
             })
             .processError(context -> {
-                log.error("Error processing event message: {}", 
-                    context.getException().getMessage(), context.getException());
+                // AzureServiceBusEventReceiverがインジェクションされたら、そのメソッドを使用
+                AzureServiceBusEventReceiver receiver = eventReceiverProvider.getIfAvailable();
+                if (receiver != null) {
+                    receiver.processError(context);
+                } else {
+                    log.error("AzureServiceBusEventReceiver not available, error will not be processed: {}", 
+                        context.getException().getMessage(), context.getException());
+                }
             })
             .buildProcessorClient();
     }
@@ -84,6 +108,8 @@ public class AzureServiceBusConfig {
      */
     @Bean
     public ServiceBusSenderClient statusFeedbackSenderClient() {
+        String statusFeedbackTopic = runtimeProperties.getAzureServicebus().getStatusFeedbackTopic();
+        
         log.info("Creating Azure Service Bus Status Feedback Sender Client for topic: {}", 
             statusFeedbackTopic);
         

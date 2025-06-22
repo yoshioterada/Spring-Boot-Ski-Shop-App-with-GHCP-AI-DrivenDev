@@ -105,19 +105,52 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,eventSystem
+      base-path: /actuator
   endpoint:
     health:
       show-details: always
+      show-components: always
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+    redis:
+      enabled: true
+    db:
+      enabled: true
   metrics:
     export:
       prometheus:
         enabled: true
+        step: 30s
+        descriptions: true
+    distribution:
+      percentiles-histogram:
+        '[http.server.requests]': true
+        '[events.publishing.duration]': true
+        '[events.processing.duration]': true
+        '[saga.duration]': true
+      percentiles:
+        '[http.server.requests]': 0.5, 0.95, 0.99
+        '[events.publishing.duration]': 0.5, 0.95, 0.99
+        '[events.processing.duration]': 0.5, 0.95, 0.99
+        '[saga.duration]': 0.5, 0.95, 0.99
+    tags:
+      application: ${spring.application.name}
+      environment: ${skishop.runtime.environment}
 
 # Application Specific Configuration
 app:
   protect:
     authenticated: /token_details,/call_graph,/profile,/admin/**
+
+# Encryption Configuration
+encryption:
+  password: ${ENCRYPTION_PASSWORD:default-encryption-password-change-in-production}
   
 # JWT Configuration (for internal token management if needed)
 jwt:

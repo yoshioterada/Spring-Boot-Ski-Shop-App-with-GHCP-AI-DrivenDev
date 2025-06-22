@@ -114,6 +114,14 @@
             <scope>provided</scope>
         </dependency>
         
+        <!-- JSR-305 Annotations (FindBugs) -->
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+            <version>3.0.2</version>
+            <scope>provided</scope>
+        </dependency>
+        
         <!-- Monitoring -->
         <dependency>
             <groupId>io.micrometer</groupId>
@@ -195,6 +203,12 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
+        </dependency>
+        <!-- Jasypt for encryption -->
+        <dependency>
+            <groupId>com.github.ulisesbocchio</groupId>
+            <artifactId>jasypt-spring-boot-starter</artifactId>
+            <version>3.0.5</version>
         </dependency>
     </dependencies>
     

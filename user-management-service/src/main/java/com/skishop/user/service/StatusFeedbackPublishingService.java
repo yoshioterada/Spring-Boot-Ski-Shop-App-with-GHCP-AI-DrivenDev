@@ -2,9 +2,9 @@ package com.skishop.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skishop.user.config.SkishopRuntimeProperties;
-import com.skishop.user.dto.EventDto;
+import com.skishop.user.dto.event.EventDto;
+import com.skishop.user.exception.EventProcessingException;
 import com.skishop.user.service.azure.AzureServiceBusStatusFeedbackPublisher;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,17 +19,24 @@ import java.util.UUID;
  * Authentication-serviceへのステータスフィードバックを送信するサービス
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class StatusFeedbackPublishingService {
 
     private final SkishopRuntimeProperties runtimeProperties;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    
-    // Azure Service Bus Publisher - オプショナル（本番環境でのみ利用可能）
-    @Autowired(required = false)
-    private AzureServiceBusStatusFeedbackPublisher azureServiceBusStatusFeedbackPublisher;
+    private final AzureServiceBusStatusFeedbackPublisher azureServiceBusStatusFeedbackPublisher;
+
+    public StatusFeedbackPublishingService(
+            SkishopRuntimeProperties runtimeProperties,
+            RedisTemplate<String, Object> redisTemplate,
+            ObjectMapper objectMapper,
+            @Autowired(required = false) AzureServiceBusStatusFeedbackPublisher azureServiceBusStatusFeedbackPublisher) {
+        this.runtimeProperties = runtimeProperties;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.azureServiceBusStatusFeedbackPublisher = azureServiceBusStatusFeedbackPublisher;
+    }
 
     /**
      * 処理成功ステータスを送信
@@ -70,7 +77,7 @@ public class StatusFeedbackPublishingService {
             );
 
             // Create event with complete schema
-            EventDto event = EventDto.builder()
+            EventDto<Map<String, Object>> event = EventDto.<Map<String, Object>>builder()
                 .eventId(eventId)
                 .eventType("USER_MANAGEMENT_STATUS")
                 .timestamp(Instant.now())
@@ -89,14 +96,14 @@ public class StatusFeedbackPublishingService {
 
         } catch (Exception e) {
             log.error("Failed to publish status feedback for saga {}: {}", sagaId, e.getMessage(), e);
-            throw new RuntimeException("Failed to publish status feedback", e);
+            throw new EventProcessingException("Failed to publish status feedback", e);
         }
     }
 
     /**
      * イベントを適切なメッセージブローカーに発行
      */
-    private void publishEventToRedis(String eventType, EventDto event) {
+    private void publishEventToRedis(String eventType, EventDto<Map<String, Object>> event) {
         try {
             // Azure Service Bus が有効で利用可能な場合は Azure Service Bus を使用
             if (isAzureServiceBusEnabled() && azureServiceBusStatusFeedbackPublisher != null) {
@@ -119,7 +126,7 @@ public class StatusFeedbackPublishingService {
             
         } catch (Exception e) {
             log.error("Failed to publish status feedback: eventType={}, error={}", eventType, e.getMessage(), e);
-            throw new RuntimeException("Failed to publish status feedback", e);
+            throw new EventProcessingException("Failed to publish status feedback", e);
         }
     }
 
@@ -128,21 +135,12 @@ public class StatusFeedbackPublishingService {
      */
     private boolean isAzureServiceBusEnabled() {
         try {
-            // Spring Profileと設定プロパティで判定
-            return runtimeProperties.getEnvironment() != null && 
-                   ("production".equals(runtimeProperties.getEnvironment()) || 
-                    "staging".equals(runtimeProperties.getEnvironment()));
+            // 設定プロパティで判定
+            return runtimeProperties.getAzureServicebus() != null && 
+                   runtimeProperties.getAzureServicebus().isEnabled();
         } catch (Exception e) {
             log.debug("Azure Service Bus availability check failed", e);
             return false;
-        }
-    }
-                redisTemplate.convertAndSend(channel, eventJson);
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to publish status feedback to Redis: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to publish status feedback", e);
         }
     }
 

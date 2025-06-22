@@ -29,4 +29,14 @@ public interface ProcessedEventRepository extends JpaRepository<ProcessedEvent, 
      */
     @Query("SELECT COUNT(p) FROM ProcessedEvent p WHERE p.processedAt >= :fromDate AND p.processedAt < :toDate")
     long countProcessedEventsBetween(@Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate);
+
+    /**
+     * イベントIDで処理済みイベントの存在確認
+     */
+    boolean existsByEventId(String eventId);
+
+    /**
+     * イベントIDで処理済みイベントを検索
+     */
+    ProcessedEvent findByEventId(String eventId);
 }

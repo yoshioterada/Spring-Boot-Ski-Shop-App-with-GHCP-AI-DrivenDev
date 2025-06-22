@@ -62,4 +62,47 @@ public class SkishopRuntimeProperties {
      * 環境設定 (local, development, production)
      */
     private String environment = "local";
+
+    /**
+     * Azure Service Bus の設定
+     */
+    private AzureServiceBus azureServicebus = new AzureServiceBus();
+
+    @Data
+    public static class AzureServiceBus {
+        /**
+         * Azure Service Bus の有効/無効
+         */
+        private boolean enabled = false;
+
+        /**
+         * トピック名
+         */
+        private String topicName = "skishop-events-prod";
+
+        /**
+         * サブスクリプション名
+         */
+        private String subscriptionName = "user-service-subscription";
+
+        /**
+         * ステータスフィードバックトピック
+         */
+        private String statusFeedbackTopic = "skishop-status-feedback-prod";
+
+        /**
+         * 最大同時実行数
+         */
+        private int maxConcurrentCalls = 4;
+
+        /**
+         * 最大リトライ回数
+         */
+        private int maxRetries = 3;
+
+        /**
+         * プリフェッチカウント
+         */
+        private int prefetchCount = 10;
+    }
 }

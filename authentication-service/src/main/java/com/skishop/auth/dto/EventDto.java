@@ -50,7 +50,7 @@ public class EventDto {
     /**
      * イベントペイロード
      */
-    private Object payload;
+    private Map<String, Object> payload;
     
     /**
      * 関連するリクエストの追跡ID
@@ -67,6 +67,28 @@ public class EventDto {
      */
     @Builder.Default
     private int retry = 0;
+    
+    // Manual getter methods since Lombok may not be working properly
+    public String getEventId() { return eventId; }
+    public String getEventType() { return eventType; }
+    public Instant getTimestamp() { return timestamp; }
+    public String getVersion() { return version; }
+    public String getProducer() { return producer; }
+    public Map<String, Object> getPayload() { return payload; }
+    public String getCorrelationId() { return correlationId; }
+    public String getSagaId() { return sagaId; }
+    public int getRetry() { return retry; }
+    
+    // Manual setter methods since Lombok may not be working properly
+    public void setEventId(String eventId) { this.eventId = eventId; }
+    public void setEventType(String eventType) { this.eventType = eventType; }
+    public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+    public void setVersion(String version) { this.version = version; }
+    public void setProducer(String producer) { this.producer = producer; }
+    public void setPayload(Map<String, Object> payload) { this.payload = payload; }
+    public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
+    public void setSagaId(String sagaId) { this.sagaId = sagaId; }
+    public void setRetry(int retry) { this.retry = retry; }
 
     // Add manual builder methods since Lombok may not be working properly
     // Manual EventDto builder method
@@ -79,36 +101,34 @@ public class EventDto {
         private String eventId;
         private String eventType;
         private Instant timestamp;
-        private String sagaId;
-        private String correlationId;
-        private String source;
-        private String destination;
         private String version;
-        private Object payload;
-        private Object metadata;
+        private String producer;
+        private Map<String, Object> payload;
+        private String correlationId;
+        private String sagaId;
+        private int retry = 0;
         
         public EventDtoBuilder eventId(String eventId) { this.eventId = eventId; return this; }
         public EventDtoBuilder eventType(String eventType) { this.eventType = eventType; return this; }
         public EventDtoBuilder timestamp(Instant timestamp) { this.timestamp = timestamp; return this; }
-        public EventDtoBuilder sagaId(String sagaId) { this.sagaId = sagaId; return this; }
-        public EventDtoBuilder correlationId(String correlationId) { this.correlationId = correlationId; return this; }
-        public EventDtoBuilder source(String source) { this.source = source; return this; }
-        public EventDtoBuilder destination(String destination) { this.destination = destination; return this; }
         public EventDtoBuilder version(String version) { this.version = version; return this; }
-        public EventDtoBuilder payload(Object payload) { this.payload = payload; return this; }
-        public EventDtoBuilder metadata(Object metadata) { this.metadata = metadata; return this; }
+        public EventDtoBuilder producer(String producer) { this.producer = producer; return this; }
+        public EventDtoBuilder payload(Map<String, Object> payload) { this.payload = payload; return this; }
+        public EventDtoBuilder correlationId(String correlationId) { this.correlationId = correlationId; return this; }
+        public EventDtoBuilder sagaId(String sagaId) { this.sagaId = sagaId; return this; }
+        public EventDtoBuilder retry(int retry) { this.retry = retry; return this; }
         
         public EventDto build() {
             EventDto eventDto = new EventDto();
             eventDto.eventId = this.eventId;
             eventDto.eventType = this.eventType;
             eventDto.timestamp = this.timestamp;
-            eventDto.sagaId = this.sagaId;
-            eventDto.correlationId = this.correlationId;
             eventDto.version = this.version;
+            eventDto.producer = this.producer;
             eventDto.payload = this.payload;
-            eventDto.producer = this.source; // Map source to producer
-            // Skip destination and metadata as they don't exist in EventDto
+            eventDto.correlationId = this.correlationId;
+            eventDto.sagaId = this.sagaId;
+            eventDto.retry = this.retry;
             return eventDto;
         }
     }

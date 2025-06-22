@@ -5,6 +5,8 @@ import com.azure.messaging.servicebus.ServiceBusSenderClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skishop.auth.dto.EventDto;
+import com.skishop.auth.exception.EventSerializationException;
+import com.skishop.auth.exception.EventPublishingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -79,11 +81,11 @@ public class AzureServiceBusEventPublisher {
 
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize event to JSON: eventId={}", event.getEventId(), e);
-            throw new RuntimeException("Event serialization failed", e);
+            throw new EventSerializationException("Event serialization failed", e);
         } catch (Exception e) {
             log.error("Failed to publish event to Azure Service Bus: eventId={}, eventType={}", 
                 event.getEventId(), event.getEventType(), e);
-            throw new RuntimeException("Event publishing failed", e);
+            throw new EventPublishingException("Event publishing failed", e);
         }
     }
 
@@ -109,7 +111,7 @@ public class AzureServiceBusEventPublisher {
 
         } catch (Exception e) {
             log.error("Failed to publish batch of events to Azure Service Bus", e);
-            throw new RuntimeException("Batch event publishing failed", e);
+            throw new EventPublishingException("Batch event publishing failed", e);
         }
     }
 

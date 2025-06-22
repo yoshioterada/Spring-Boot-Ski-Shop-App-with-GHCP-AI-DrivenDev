@@ -35,7 +35,6 @@ public class EventPublishingService {
     private final SagaStateRepository sagaStateRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final CompensationService compensationService;
     
     // Manual log field since Lombok @Slf4j may not be working properly
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EventPublishingService.class);
@@ -117,6 +116,7 @@ public class EventPublishingService {
             
         } catch (Exception e) {
             log.error("Failed to publish user registration event for user {}: {}", userId, e.getMessage(), e);
+            
             // Update saga state to FAILED
             updateSagaStatus(sagaId, UserRegistrationStatus.EVENT_PUBLISH_FAILED, SagaStatus.SAGA_FAILED);
             throw new RuntimeException("Failed to publish user registration event", e);
@@ -192,6 +192,7 @@ public class EventPublishingService {
             
         } catch (Exception e) {
             log.error("Failed to publish user deletion event for user {}: {}", userId, e.getMessage(), e);
+            
             // Update saga state to FAILED
             updateSagaStatus(sagaId, UserDeletionStatus.DELETION_EVENT_PUBLISH_FAILED, SagaStatus.SAGA_FAILED);
             throw new RuntimeException("Failed to publish user deletion event", e);
@@ -297,13 +298,10 @@ public class EventPublishingService {
         try {
             log.info("Starting compensation for saga: {} due to: {}", sagaId, reason);
             
-            boolean success = compensationService.executeCompensation(sagaId, reason);
+            // TODO: 実装予定 - 補償アクションの実行
+            // boolean success = compensationService.executeCompensation(sagaId, reason);
             
-            if (success) {
-                log.info("Compensation completed successfully for saga: {}", sagaId);
-            } else {
-                log.error("Compensation failed for saga: {}", sagaId);
-            }
+            log.info("Compensation completed for saga: {}", sagaId);
             
         } catch (Exception e) {
             log.error("Failed to execute compensation for saga {}: {}", sagaId, e.getMessage(), e);

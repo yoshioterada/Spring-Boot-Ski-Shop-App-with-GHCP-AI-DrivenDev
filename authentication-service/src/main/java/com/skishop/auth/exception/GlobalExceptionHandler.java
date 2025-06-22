@@ -115,6 +115,34 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(EventSerializationException.class)
+    public ResponseEntity<ErrorResponse> handleEventSerializationException(EventSerializationException ex) {
+        log.error("Event serialization error: {}", ex.getMessage(), ex);
+        
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .error("Event Serialization Error")
+                .message("Failed to serialize event data")
+                .build();
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    @ExceptionHandler(EventPublishingException.class)
+    public ResponseEntity<ErrorResponse> handleEventPublishingException(EventPublishingException ex) {
+        log.error("Event publishing error: {}", ex.getMessage(), ex);
+        
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.SERVICE_UNAVAILABLE.value())
+                .error("Event Publishing Error")
+                .message("Failed to publish event to message broker")
+                .build();
+        
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
         log.error("Unexpected error: ", ex);
