@@ -1,5 +1,7 @@
 # スキー用品販売ショップ マイクロサービス
 
+※ 未完成 : 現在全てを GitHub Copilot Agent Mode で実装する検証中
+
 マイクロサービスアーキテクチャを採用したスキー用品Eコマースプラットフォームです。
 
 ![Ski Shop Top Page](./tmp/ski-shop.png)
