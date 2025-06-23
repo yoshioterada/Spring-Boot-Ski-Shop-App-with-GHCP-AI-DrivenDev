@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle != null ? pageTitle : 'Azure SkiShop'}"></title>
+    
+    <!-- Bootstrap CSS (CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" 
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <!-- Font Awesome (CDN) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/styles.css}" rel="stylesheet">
+    <link th:if="${isAdminPage != null and isAdminPage}" th:href="@{/css/admin.css}" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-blue: #4A90E2;
+            --light-blue: #E3F2FD;
+            --medium-blue: #90CAF9;
+            --dark-blue: #1976D2;
+            --primary-red: #E74C3C;
+            --light-red: #FFEBEE;
+            --medium-red: #EF9A9A;
+            --dark-red: #C62828;
+        }
+        
+        .customer-theme {
+            --primary-color: var(--primary-blue);
+            --secondary-color: var(--light-blue);
+            --accent-color: var(--medium-blue);
+        }
+        
+        .admin-theme {
+            --primary-color: var(--primary-red);
+            --secondary-color: var(--light-red);
+            --accent-color: var(--medium-red);
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: var(--primary-color) !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, var(--light-blue), var(--medium-blue));
+            padding: 100px 0;
+            color: white;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .product-card .card-img-top {
+            height: 200px;
+            object-fit: cover;
+        }
+        
+        .footer {
+            background-color: #2c3e50;
+            color: white;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body th:class="${isAdminPage != null and isAdminPage ? 'admin-theme' : 'customer-theme'}">
+    
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-skiing"></i>
+                Azure SkiShop
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">ホーム</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            商品カテゴリ
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/products?category=ski">スキー</a></li>
+                            <li><a class="dropdown-item" href="/products?category=snowboard">スノーボード</a></li>
+                            <li><a class="dropdown-item" href="/products?category=wear">ウェア</a></li>
+                            <li><a class="dropdown-item" href="/products?category=accessories">アクセサリー</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/products">全商品</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/ai-chat">
+                            <i class="fas fa-robot me-1"></i>
+                            AI相談
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- Search Form -->
+                <form class="d-flex me-3" action="/search" method="get">
+                    <input class="form-control me-2" type="search" name="q" placeholder="商品を検索..." aria-label="Search">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+                
+                <!-- User Menu -->
+                <ul class="navbar-nav">
+                    <!-- Cart -->
+                    <li class="nav-item">
+                        <a class="nav-link position-relative" href="/cart">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="cart-count">
+                                0
+                            </span>
+                        </a>
+                    </li>
+                    
+                    <!-- User Account -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i>
+                            <span>ユーザー</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/profile">プロフィール</a></li>
+                            <li><a class="dropdown-item" href="/orders">注文履歴</a></li>
+                            <li><a class="dropdown-item" href="/points">ポイント</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">ログアウト</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Login Button (commented out for now) -->
+                    <!--
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">
+                            <i class="fas fa-sign-in-alt"></i>
+                            ログイン
+                        </a>
+                    </li>
+                    -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Alerts -->
+    <div class="container mt-3" th:if="${(success != null and success != '') or (error != null and error != '') or (info != null and info != '') or (warning != null and warning != '')}">
+        <div class="alert alert-success alert-dismissible fade show" role="alert" th:if="${success != null and success != ''}">
+            <span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" th:if="${error != null and error != ''}">
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div class="alert alert-info alert-dismissible fade show" role="alert" th:if="${info != null and info != ''}">
+            <span th:text="${info}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div class="alert alert-warning alert-dismissible fade show" role="alert" th:if="${warning != null and warning != ''}">
+            <span th:text="${warning}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main>
+        <div layout:fragment="content">
+            <!-- Page content will be inserted here -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>Azure SkiShop</h5>
+                    <p>あなたのスキーライフをサポートする最高品質の製品をお届けします。</p>
+                </div>
+                <div class="col-md-2">
+                    <h6>サービス</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="/products" class="text-light">商品一覧</a></li>
+                        <li><a href="/support" class="text-light">サポート</a></li>
+                        <li><a href="/ai-chat" class="text-light">AI相談</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h6>アカウント</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="/profile" class="text-light">プロフィール</a></li>
+                        <li><a href="/orders" class="text-light">注文履歴</a></li>
+                        <li><a href="/points" class="text-light">ポイント</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h6>会社情報</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="/about" class="text-light">会社概要</a></li>
+                        <li><a href="/contact" class="text-light">お問い合わせ</a></li>
+                        <li><a href="/privacy" class="text-light">プライバシーポリシー</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h6>フォローする</h6>
+                    <div>
+                        <a href="#" class="text-light me-2"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="text-light me-2"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-light me-2"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="text-center">
+                <p>&copy; 2025 Azure SkiShop. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <!-- jQuery (CDN) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" 
+            integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <!-- Bootstrap JS (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <!-- Custom JS -->
+    <script th:src="@{/js/app.js}"></script>
+    
+    <script>
+        // カートアイテム数を更新
+        function updateCartCount() {
+            fetch('/cart/count')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('cart-count').textContent = data.count;
+                })
+                .catch(error => console.log('Cart count update failed:', error));
+        }
+        
+        // ページ読み込み時にカートアイテム数を更新
+        document.addEventListener('DOMContentLoaded', updateCartCount);
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>カート - Azure SkiShop</title>
+</head>
+<body>
+    <div layout:fragment="content">
+    
+    <main class="container py-5">
+        <div class="row">
+            <div class="col-12">
+                <nav aria-label="breadcrumb" class="mb-3">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">ホーム</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">カート</li>
+                    </ol>
+                </nav>
+                
+                <h1 class="h3 mb-4">ショッピングカート</h1>
+            </div>
+        </div>
+        
+        <div class="row" th:if="${cart != null && cart.items != null && !cart.items.isEmpty()}">
+            <!-- カートアイテム -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <div th:each="item : ${cart.items}" class="cart-item border-bottom py-3">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <img th:src="${item.imageUrl()}" 
+                                         th:alt="${item.productName()}"
+                                         class="rounded" 
+                                         style="width: 80px; height: 80px; object-fit: cover;">
+                                </div>
+                                <div class="col">
+                                    <h6 class="mb-1" th:text="${item.productName()}">商品名</h6>
+                                    <p class="text-muted small mb-1">
+                                        単価: ¥<span th:text="${#numbers.formatInteger(item.unitPrice, 0, 'COMMA')}">0</span>
+                                    </p>
+                                    <div class="d-flex align-items-center">
+                                        <form th:action="@{/cart/update}" method="post" class="d-flex align-items-center me-3">
+                                            <input type="hidden" name="itemId" th:value="${item.id}">
+                                            <label for="quantity" class="form-label me-2 mb-0 small">数量:</label>
+                                            <input type="number" class="form-control form-control-sm" 
+                                                   id="quantity" name="quantity" 
+                                                   th:value="${item.quantity}" 
+                                                   min="1" max="99"
+                                                   style="width: 70px;"
+                                                   onchange="this.form.submit()">
+                                        </form>
+                                        <form th:action="@{/cart/remove}" method="post" class="d-inline">
+                                            <input type="hidden" name="itemId" th:value="${item.id}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="col-auto text-end">
+                                    <div class="h6 mb-0">
+                                        ¥<span th:text="${#numbers.formatInteger(item.totalPrice, 0, 'COMMA')}">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-3">
+                            <a href="/products" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>
+                                買い物を続ける
+                            </a>
+                            <form th:action="@{/cart/clear}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-outline-warning"
+                                        onclick="return confirm('カートを空にしますか？')">
+                                    <i class="fas fa-trash me-1"></i>
+                                    カートを空にする
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 注文サマリー -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">注文サマリー</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>小計:</span>
+                            <span>¥<span th:text="${#numbers.formatInteger(cart.subtotal(), 0, 'COMMA')}">0</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>消費税:</span>
+                            <span>¥<span th:text="${#numbers.formatInteger(cart.tax(), 0, 'COMMA')}">0</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>送料:</span>
+                            <span th:if="${cart.shipping().compareTo(T(java.math.BigDecimal).ZERO) > 0}">¥<span th:text="${#numbers.formatInteger(cart.shipping(), 0, 'COMMA')}">0</span></span>
+                            <span th:if="${cart.shipping().compareTo(T(java.math.BigDecimal).ZERO) == 0}" class="text-success">無料</span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between h5">
+                            <span>合計:</span>
+                            <span class="text-primary">¥<span th:text="${#numbers.formatInteger(cart.total(), 0, 'COMMA')}">0</span></span>
+                        </div>
+                        
+                        <a href="/checkout" class="btn btn-primary w-100 btn-lg mt-3">
+                            <i class="fas fa-credit-card me-2"></i>
+                            レジに進む
+                        </a>
+                        
+                        <div class="mt-3 text-center">
+                            <small class="text-muted">
+                                <i class="fas fa-lock me-1"></i>
+                                安全な暗号化通信
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- クーポン -->
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">クーポンコード</h6>
+                        <form th:action="@{/cart/apply-coupon}" method="post">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="couponCode" placeholder="クーポンコードを入力">
+                                <button type="submit" class="btn btn-outline-secondary">適用</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 空のカート -->
+        <div class="row" th:if="${cart == null || cart.items == null || cart.items.isEmpty()}">
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">カートは空です</h4>
+                <p class="text-muted">商品をカートに追加して、ショッピングを始めましょう。</p>
+                <a href="/products" class="btn btn-primary">
+                    <i class="fas fa-shopping-bag me-2"></i>
+                    商品を見る
+                </a>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // 数量変更時の自動更新
+        document.querySelectorAll('input[name="quantity"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.value < 1) {
+                    this.value = 1;
+                }
+                this.form.submit();
+            });
+        });
+    </script>
+    </div>
+</body>
+</html>

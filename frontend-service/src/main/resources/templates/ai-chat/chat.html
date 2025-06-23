@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title th:text="${pageTitle}">AI相談チャット - Azure SkiShop</title>
+    <style>
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            height: 70vh;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message.ai {
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .message.user .message-content {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: 50px;
+        }
+        
+        .message.ai .message-content {
+            background-color: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            margin-right: 50px;
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+        }
+        
+        .message.user .message-avatar {
+            background-color: var(--accent-color);
+            margin-left: 10px;
+        }
+        
+        .message.ai .message-avatar {
+            background-color: var(--primary-color);
+            margin-right: 10px;
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            background-color: white;
+            border-top: 1px solid #ddd;
+        }
+        
+        .chat-input-form {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+        }
+        
+        .chat-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+        }
+        
+        .chat-send-btn {
+            padding: 12px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .chat-send-btn:hover {
+            background-color: var(--accent-color);
+        }
+        
+        .chat-send-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+            margin-left: 50px;
+        }
+        
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ccc;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            margin-top: 50px;
+        }
+        
+        .suggestion-chips {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .suggestion-chip {
+            padding: 8px 16px;
+            background-color: white;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .suggestion-chip:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid py-5">
+            <!-- ページヘッダー -->
+            <div class="row mb-4">
+                <div class="col-12 text-center">
+                    <h1 class="display-4 mb-3">
+                        <i class="fas fa-robot text-primary me-3"></i>
+                        AI相談チャット
+                    </h1>
+                    <p class="lead text-muted">
+                        スキー・スノーボード用品について何でもお聞きください！<br>
+                        経験豊富なAIアシスタントがお答えします。
+                    </p>
+                </div>
+            </div>
+
+            <!-- チャットコンテナ -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="chat-container">
+                        <!-- チャットヘッダー -->
+                        <div class="chat-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-comments me-2"></i>
+                                Azure SkiShop AIアシスタント
+                            </h5>
+                            <small>オンライン</small>
+                        </div>
+
+                        <!-- チャットメッセージエリア -->
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- ウェルカムメッセージ -->
+                            <div class="welcome-message">
+                                <div class="message ai">
+                                    <div class="message-avatar">
+                                        <i class="fas fa-robot"></i>
+                                    </div>
+                                    <div class="message-content">
+                                        こんにちは！Azure SkiShopのAIアシスタントです。<br>
+                                        スキー・スノーボード用品について何でもお聞きください！
+                                    </div>
+                                </div>
+                                
+                                <!-- 提案チップ -->
+                                <div class="suggestion-chips">
+                                    <button class="suggestion-chip" onclick="sendSuggestion('初心者におすすめのスキー板を教えて')">
+                                        初心者向けスキー板
+                                    </button>
+                                    <button class="suggestion-chip" onclick="sendSuggestion('スノーボードのサイズの選び方は？')">
+                                        サイズ選び
+                                    </button>
+                                    <button class="suggestion-chip" onclick="sendSuggestion('ウェアの価格帯を教えて')">
+                                        価格について
+                                    </button>
+                                    <button class="suggestion-chip" onclick="sendSuggestion('メンテナンス方法を知りたい')">
+                                        メンテナンス
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- タイピングインジケーター -->
+                            <div class="typing-indicator" id="typingIndicator">
+                                <div class="message-avatar">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="typing-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- チャット入力エリア -->
+                        <div class="chat-input-container">
+                            <form class="chat-input-form" id="chatForm">
+                                <input type="text" 
+                                       class="chat-input" 
+                                       id="messageInput" 
+                                       placeholder="メッセージを入力してください..." 
+                                       autocomplete="off"
+                                       maxlength="500">
+                                <button type="submit" class="chat-send-btn" id="sendButton" title="メッセージを送信">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 注意事項 -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>ご利用上の注意</h6>
+                        <small>
+                            • AIアシスタントは商品選びの参考情報を提供します<br>
+                            • 最終的な商品選択は店舗スタッフにご相談ください<br>
+                            • チャット履歴は一時的に保存され、セッション終了時に削除されます
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:inline="javascript">
+        // チャット機能の実装
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatForm = document.getElementById('chatForm');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // チャットフォーム送信処理
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (message) {
+                sendMessage(message);
+                messageInput.value = '';
+            }
+        });
+
+        // メッセージ送信関数
+        function sendMessage(message) {
+            // ユーザーメッセージを表示
+            addMessage(message, 'user');
+            
+            // 送信ボタンを無効化
+            sendButton.disabled = true;
+            
+            // タイピングインジケーターを表示
+            showTypingIndicator();
+
+            // AIサポートサービスにメッセージを送信（ChatMessageRequest形式）
+            const requestBody = {
+                userId: 'anonymous-user', // 実際のアプリケーションではセッションから取得
+                content: message,
+                conversationId: null, // 新規会話の場合はnull
+                sessionId: generateSessionId(), // セッションIDを生成または取得
+                context: {
+                    channel: 'web-chat',
+                    userAgent: navigator.userAgent,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            fetch('/api/ai-chat/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // タイピングインジケーターを非表示
+                hideTypingIndicator();
+                
+                // AIレスポンス（ChatMessageResponse形式）を表示
+                const aiMessage = data.content || data.message || 'レスポンスの取得に失敗しました。';
+                addMessage(aiMessage, 'ai');
+                
+                // 送信ボタンを有効化
+                sendButton.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideTypingIndicator();
+                addMessage('申し訳ございません。一時的にエラーが発生しました。しばらく経ってから再度お試しください。', 'ai');
+                sendButton.disabled = false;
+            });
+        }
+
+        // セッションIDを生成または取得する関数
+        function generateSessionId() {
+            let sessionId = sessionStorage.getItem('ai-chat-session-id');
+            if (!sessionId) {
+                sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                sessionStorage.setItem('ai-chat-session-id', sessionId);
+            }
+            return sessionId;
+        }
+
+        // メッセージをチャットエリアに追加
+        function addMessage(content, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            avatarDiv.innerHTML = sender === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = content.replace(/\n/g, '<br>');
+            
+            if (sender === 'user') {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatarDiv);
+            } else {
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(contentDiv);
+            }
+            
+            // ウェルカムメッセージの前に挿入
+            const welcomeMessage = chatMessages.querySelector('.welcome-message');
+            if (welcomeMessage && chatMessages.children.length === 2) {
+                // 初回メッセージの場合、ウェルカムメッセージを非表示
+                welcomeMessage.style.display = 'none';
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            
+            // スクロールを最下部に移動
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // タイピングインジケーターを表示
+        function showTypingIndicator() {
+            typingIndicator.style.display = 'flex';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // タイピングインジケーターを非表示
+        function hideTypingIndicator() {
+            typingIndicator.style.display = 'none';
+        }
+
+        // 提案チップクリック処理
+        function sendSuggestion(suggestion) {
+            sendMessage(suggestion);
+        }
+
+        // Enterキーでメッセージ送信（Shift+Enterで改行）
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>

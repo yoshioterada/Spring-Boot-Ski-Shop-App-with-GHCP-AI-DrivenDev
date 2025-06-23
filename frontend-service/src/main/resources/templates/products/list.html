@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle}">商品一覧 - Azure SkiShop</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container py-4">
+            <!-- ページヘッダー -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <h1>商品一覧</h1>
+                    <p class="text-muted" th:if="${totalProducts}">
+                        <span th:text="${totalProducts}">0</span>件の商品が見つかりました
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex gap-2">
+                        <!-- ソート -->
+                        <select class="form-select filter-select" name="sort" onchange="this.form.submit()">
+                            <option value="name" th:selected="${currentSort == 'name'}">名前順</option>
+                            <option value="price" th:selected="${currentSort == 'price'}">価格順</option>
+                            <option value="rating" th:selected="${currentSort == 'rating'}">評価順</option>
+                            <option value="createdAt" th:selected="${currentSort == 'createdAt'}">新着順</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- サイドバーフィルター -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">フィルター</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="get" action="/products">
+                                <!-- カテゴリフィルター -->
+                                <div class="mb-3">
+                                    <label class="form-label">カテゴリ</label>
+                                    <select class="form-select" name="category">
+                                        <option value="">すべて</option>
+                                        <option value="ski" th:selected="${selectedCategory == 'ski'}">スキー</option>
+                                        <option value="snowboard" th:selected="${selectedCategory == 'snowboard'}">スノーボード</option>
+                                        <option value="wear" th:selected="${selectedCategory == 'wear'}">ウェア</option>
+                                        <option value="accessories" th:selected="${selectedCategory == 'accessories'}">アクセサリー</option>
+                                    </select>
+                                </div>
+
+                                <!-- ブランドフィルター -->
+                                <div class="mb-3">
+                                    <label class="form-label">ブランド</label>
+                                    <select class="form-select" name="brand">
+                                        <option value="">すべて</option>
+                                        <option value="rossignol" th:selected="${selectedBrand == 'rossignol'}">Rossignol</option>
+                                        <option value="salomon" th:selected="${selectedBrand == 'salomon'}">Salomon</option>
+                                        <option value="burton" th:selected="${selectedBrand == 'burton'}">Burton</option>
+                                        <option value="k2" th:selected="${selectedBrand == 'k2'}">K2</option>
+                                    </select>
+                                </div>
+
+                                <!-- 価格帯フィルター -->
+                                <div class="mb-3">
+                                    <label class="form-label">価格帯</label>
+                                    <select class="form-select" name="priceRange">
+                                        <option value="">すべて</option>
+                                        <option value="0-10000">¥10,000以下</option>
+                                        <option value="10000-50000">¥10,000 - ¥50,000</option>
+                                        <option value="50000-100000">¥50,000 - ¥100,000</option>
+                                        <option value="100000-">¥100,000以上</option>
+                                    </select>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary w-100">絞り込み</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品一覧 -->
+                <div class="col-md-9">
+                    <div class="row g-4" th:if="${products != null and not products.isEmpty()}">
+                        <div class="col-md-4" th:each="product : ${products}">
+                            <div class="card product-card h-100">
+                                <!-- 商品画像 -->
+                                <div class="position-relative">
+                                    <img th:src="${product.imageUrls != null and !product.imageUrls.isEmpty() ? product.imageUrls[0] : '/images/no-image.jpg'}" 
+                                         class="card-img-top" 
+                                         th:alt="${product.name}"
+                                         th:title="${product.name}">
+                                    
+                                    <!-- 在庫バッジ -->
+                                    <span th:if="${!product.inStock}" 
+                                          class="position-absolute top-0 end-0 badge bg-danger m-2">
+                                        在庫切れ
+                                    </span>
+                                    
+                                    <!-- ウィッシュリストボタン -->
+                                    <button class="btn btn-outline-light position-absolute top-0 start-0 m-2" 
+                                            th:onclick="'SkiShopApp.toggleWishlist(\'' + ${product.id} + '\')'">
+                                        <i class="far fa-heart heart-icon"></i>
+                                    </button>
+                                </div>
+
+                                <div class="card-body d-flex flex-column">
+                                    <!-- 商品名・ブランド -->
+                                    <h6 class="card-title" th:text="${product.name}">商品名</h6>
+                                    <p class="card-text text-muted small mb-2" th:text="${product.brand}">ブランド名</p>
+                                    
+                                    <!-- 評価 -->
+                                    <div class="mb-2" th:if="${product.rating > 0}">
+                                        <div class="rating-stars text-warning">
+                                            <i class="fas fa-star" th:each="i : ${#numbers.sequence(1, product.rating)}"></i>
+                                            <i class="far fa-star" th:each="i : ${#numbers.sequence(product.rating + 1, 5)}"></i>
+                                        </div>
+                                        <small class="text-muted" th:text="'(' + ${product.reviewCount} + ' レビュー)'"></small>
+                                    </div>
+
+                                    <!-- 価格 -->
+                                    <div class="mt-auto">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="h5 mb-0 price" th:text="'¥' + ${#numbers.formatInteger(product.price, 3, 'COMMA')}">¥0</span>
+                                        </div>
+
+                                        <!-- アクションボタン -->
+                                        <div class="d-grid gap-2">
+                                            <a th:href="@{/products/{id}(id=${product.id})}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                詳細を見る
+                                            </a>
+                                            <form th:action="@{/cart/add}" method="post" class="d-grid">
+                                                <input type="hidden" name="productId" th:value="${product.id}">
+                                                <button type="submit" 
+                                                        class="btn btn-primary btn-sm add-to-cart-btn" 
+                                                        th:disabled="${!product.inStock}"
+                                                        th:title="${product.inStock ? 'カートに追加' : '在庫切れ'}">
+                                                    <i class="fas fa-cart-plus"></i>
+                                                    <span th:text="${product.inStock ? 'カートに追加' : '在庫切れ'}"></span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 商品がない場合のメッセージ -->
+                    <div th:if="${products == null or products.isEmpty()}" class="text-center py-5">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle fa-2x mb-3"></i>
+                            <h5>商品が見つかりませんでした</h5>
+                            <p class="mb-0">現在、該当する商品がありません。検索条件を変更してお試しください。</p>
+                        </div>
+                    </div>
+
+                    <!-- 商品がない場合 -->
+                    <div th:if="${products == null or products.isEmpty()}" class="text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4>商品が見つかりませんでした</h4>
+                        <p class="text-muted">検索条件を変更して再度お試しください。</p>
+                        <a href="/products" class="btn btn-primary">すべての商品を見る</a>
+                    </div>
+
+                    <!-- ページネーション -->
+                    <nav th:if="${totalPages > 1}" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            <!-- 前のページ -->
+                            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                <a class="page-link pagination-link" 
+                                   th:href="@{/products(page=${currentPage - 1}, size=20, sort=${currentSort}, category=${selectedCategory}, brand=${selectedBrand})}">
+                                    前へ
+                                </a>
+                            </li>
+
+                            <!-- ページ番号 -->
+                            <li class="page-item" 
+                                th:each="page : ${#numbers.sequence(0, totalPages - 1)}"
+                                th:classappend="${page == currentPage} ? 'active'">
+                                <a class="page-link pagination-link" 
+                                   th:href="@{/products(page=${page}, size=20, sort=${currentSort}, category=${selectedCategory}, brand=${selectedBrand})}"
+                                   th:text="${page + 1}">1</a>
+                            </li>
+
+                            <!-- 次のページ -->
+                            <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                                <a class="page-link pagination-link" 
+                                   th:href="@{/products(page=${currentPage + 1}, size=20, sort=${currentSort}, category=${selectedCategory}, brand=${selectedBrand})}">
+                                    次へ
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

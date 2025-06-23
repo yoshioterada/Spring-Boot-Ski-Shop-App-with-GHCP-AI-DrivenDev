@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="layout :: head">
+    <title>ログイン - Azure SkiShop</title>
+</head>
+<body>
+    <div th:replace="layout :: header"></div>
+    
+    <main class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <h2 class="h4">ログイン</h2>
+                            <p class="text-muted">Azure SkiShopへようこそ</p>
+                        </div>
+                        
+                        <form action="/login" method="post">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">メールアドレス</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="password" class="form-label">パスワード</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                                <label class="form-check-label" for="remember">
+                                    ログイン状態を保持する
+                                </label>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100 mb-3">ログイン</button>
+                        </form>
+                        
+                        <div class="text-center">
+                            <a href="/register" class="text-decoration-none">アカウントをお持ちでない方はこちら</a>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="text-center">
+                            <p class="small text-muted mb-2">ソーシャルログイン</p>
+                            <div class="d-flex gap-2 justify-content-center">
+                                <button class="btn btn-outline-dark btn-sm">
+                                    <i class="fab fa-google me-1"></i>Google
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm">
+                                    <i class="fab fa-microsoft me-1"></i>Microsoft
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <div th:replace="layout :: footer"></div>
+</body>
+</html>

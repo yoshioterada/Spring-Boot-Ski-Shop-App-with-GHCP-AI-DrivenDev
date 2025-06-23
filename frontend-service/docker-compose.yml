@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  frontend-service:
+    build: .
+    container_name: skishop-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - API_GATEWAY_URL=http://api-gateway:8080
+      - SKISHOP_AUTH_ENABLED=false
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+    volumes:
+      - ./src/main/resources/static:/app/static:ro
+      - ./src/main/resources/templates:/app/templates:ro
+    networks:
+      - skishop-network
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 開発用のAPIゲートウェイ（実際の実装に合わせて調整）
+  api-gateway:
+    image: nginx:alpine
+    container_name: skishop-api-gateway
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - skishop-network
+    restart: unless-stopped
+
+networks:
+  skishop-network:
+    driver: bridge
+
+volumes:
+  frontend-static:
+  frontend-templates:

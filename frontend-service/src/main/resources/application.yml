@@ -1,0 +1,142 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 30m
+
+spring:
+  application:
+    name: frontend-service
+  
+  profiles:
+    active: local
+  
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+  
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          max-age: 1h
+      chain:
+        strategy:
+          content:
+            enabled: true
+        gzipped: true
+  
+  cache:
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=10m
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Application specific configuration
+app:
+  api-gateway:
+    url: ${API_GATEWAY_URL:http://localhost:8080}
+  
+  ai-support-service:
+    base-url: ${AI_SUPPORT_SERVICE_URL:http://localhost:8084}
+  
+  payment-cart-service:
+    base-url: ${PAYMENT_CART_SERVICE_URL:http://localhost:8085}
+  
+  skishop:
+    name: "Azure SkiShop"
+    version: "1.0.0"
+    auth:
+      enabled: ${SKISHOP_AUTH_ENABLED:true}
+    
+  features:
+    ai-chat: true
+    recommendations: true
+    reviews: true
+
+logging:
+  level:
+    com.skishop.frontend: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+app:
+  api-gateway:
+    url: http://localhost:8080
+  ai-support-service:
+    base-url: http://localhost:8084
+  payment-cart-service:
+    base-url: http://localhost:8085
+  skishop:
+    auth:
+      enabled: false
+
+logging:
+  level:
+    com.skishop.frontend: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  security:
+    oauth2:
+      client:
+        registration:
+          azure:
+            client-id: ${AZURE_CLIENT_ID}
+            client-secret: ${AZURE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            authorization-grant-type: authorization_code
+        provider:
+          azure:
+            authorization-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize
+            token-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
+            user-info-uri: https://graph.microsoft.com/v1.0/me
+            jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
+            user-name-attribute: sub
+
+app:
+  api-gateway:
+    url: https://api-management.azure-api.net
+  ai-support-service:
+    base-url: ${AI_SUPPORT_SERVICE_URL:https://ai-support-service.azure-api.net}
+  payment-cart-service:
+    base-url: ${PAYMENT_CART_SERVICE_URL:https://payment-cart-service.azure-api.net}
+  skishop:
+    auth:
+      enabled: true
+
+logging:
+  level:
+    com.skishop.frontend: INFO
+    root: WARN

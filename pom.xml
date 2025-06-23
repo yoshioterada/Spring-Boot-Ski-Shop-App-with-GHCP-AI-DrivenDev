@@ -38,6 +38,7 @@
     </properties>
 
     <modules>
+        <module>frontend-service</module>
         <module>api-gateway</module>
         <module>authentication-service</module>
         <module>user-management-service</module>
