@@ -25,7 +25,7 @@
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok.version>1.18.30</lombok.version>
         <springdoc.version>2.3.0</springdoc.version>
-        <azure.version>1.11.1</azure.version>
+        <azure.version>1.12.2</azure.version>
         <testcontainers.version>1.19.3</testcontainers.version>
     </properties>
 
